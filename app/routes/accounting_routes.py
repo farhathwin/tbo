@@ -1702,6 +1702,13 @@ def add_invoice_line(invoice_id):
         else:
             profit = Decimal(0)
 
+        ticket_no = request.form.get('ticket_no')
+        if ticket_no:
+            digits = ticket_no.replace('-', '')
+            if len(digits) < 10 or len(digits) > 16:
+                flash("❌ Invalid ticket number length", "danger")
+                return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice_id))
+
         new_line = InvoiceLine(
             invoice_id=invoice.id,
             type=line_type,
@@ -1713,12 +1720,13 @@ def add_invoice_line(invoice_id):
             profit=profit,
             pnr=request.form.get('pnr'),
             designator=request.form.get('designator'),
-            ticket_no=request.form.get('ticket_no'),
+            ticket_no=ticket_no,
             supplier_id=int(request.form.get('supplier_id')) if request.form.get('supplier_id') else None
         )
 
         tenant_session.add(new_line)
         tenant_session.commit()
+        recalculate_invoice_totals(invoice, tenant_session)
 
         flash("✅ Invoice line added", "success")
 
@@ -1746,15 +1754,34 @@ def edit_invoice_line(line_id):
     suppliers = tenant_session.query(Supplier).filter_by(is_active=True).order_by(Supplier.business_name).all()
 
     if request.method == 'POST':
-        line.description = request.form.get('description')
-        line.quantity = int(request.form.get('quantity'))
-        line.unit_price = float(request.form.get('unit_price'))
-        line.cost_price = float(request.form.get('cost_price') or 0)
-        line.total = line.quantity * line.unit_price
+        line.type = request.form.get('type')
+        line.sub_type = request.form.get('sub_type')
+        pax_id = request.form.get('pax_id')
+        line.pax_id = int(pax_id) if pax_id else None
+        line.base_fare = Decimal(request.form.get('base_fare') or 0)
+        line.tax = Decimal(request.form.get('tax') or 0)
+        line.sell_price = Decimal(request.form.get('sell_price') or 0)
+
+        if line.type == 'Air Ticket':
+            line.profit = line.sell_price - (line.base_fare + line.tax)
+        else:
+            line.profit = line.sell_price - line.base_fare
+
+        line.pnr = request.form.get('pnr')
+        line.designator = request.form.get('designator')
+        ticket_no = request.form.get('ticket_no')
+        if ticket_no:
+            digits = ticket_no.replace('-', '')
+            if len(digits) < 10 or len(digits) > 16:
+                flash("❌ Invalid ticket number length", "danger")
+                return redirect(url_for('accounting_routes.edit_invoice_line', line_id=line.id))
+        line.ticket_no = ticket_no
+
         supplier_id = request.form.get('supplier_id')
         line.supplier_id = int(supplier_id) if supplier_id else None
 
         tenant_session.commit()
+        recalculate_invoice_totals(line.invoice, tenant_session)
         flash("✅ Invoice line updated", "success")
         return redirect(url_for('accounting_routes.edit_invoice', invoice_id=line.invoice_id))
 
@@ -1781,14 +1808,16 @@ def delete_invoice_line(line_id):
     invoice_id = line.invoice_id
     tenant_session.delete(line)
     tenant_session.commit()
-
+    invoice = tenant_session.query(Invoice).filter_by(id=invoice_id).first()
+    if invoice:
+        recalculate_invoice_totals(invoice, tenant_session)
 
     flash("🗑️ Invoice line deleted", "info")
     return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice_id))
 
 
 def recalculate_invoice_totals(invoice, session):
-    total = sum(line.total for line in invoice.lines)
+    total = sum(line.sell_price or 0 for line in invoice.lines)
     invoice.total_amount = total
     session.commit()
 
@@ -1843,7 +1872,7 @@ def save_invoice(invoice_id):
         return redirect(url_for('accounting_routes.invoice_list'))
 
     # ✅ Recalculate total from all line items
-    total = sum((line.quantity or 0) * (line.unit_price or 0) for line in invoice.lines)
+    total = sum(line.sell_price or 0 for line in invoice.lines)
     invoice.total_amount = total
 
     tenant_session.commit()

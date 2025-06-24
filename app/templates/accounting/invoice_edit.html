@@ -131,7 +131,7 @@
     </div>
     <div class="col-md-3 iata-only-field">
       <label>Ticket No</label>
-      <input type="text" name="ticket_no" class="form-control" maxlength="16" pattern="\d{10,16}">
+      <input type="text" name="ticket_no" class="form-control" maxlength="18" pattern="\d{10,16}(-\d{1,2})?" title="10-16 digits, optionally followed by - and up to two digits">
     </div>
 
     <div class="col-md-3">
@@ -158,10 +158,15 @@
   <thead>
     <tr>
       <th>Passenger</th>
-      <th>Description</th>
-      <th>Qty</th>
-      <th>Unit Price</th>
-      <th>Total</th>
+      <th>Type</th>
+      <th>Sub Type</th>
+      <th>Base Fare</th>
+      <th>Tax</th>
+      <th>Sell</th>
+      <th>Profit</th>
+      <th>PNR / Ref</th>
+      <th>Designator</th>
+      <th>Ticket No</th>
       <th>Supplier</th>
       <th>Actions</th>
     </tr>
@@ -170,10 +175,15 @@
     {% for line in invoice.lines %}
     <tr>
       <td>{{ line.pax.full_name if line.pax else '-' }}</td>
-      <td>{{ line.description }}</td>
-      <td>{{ line.quantity }}</td>
-      <td>{{ "{:,.2f}".format(line.unit_price) }}</td>
-      <td>{{ "{:,.2f}".format(line.total) }}</td>
+      <td>{{ line.type }}</td>
+      <td>{{ line.sub_type }}</td>
+      <td>{{ "{:,.2f}".format(line.base_fare or 0) }}</td>
+      <td>{{ "{:,.2f}".format(line.tax or 0) }}</td>
+      <td>{{ "{:,.2f}".format(line.sell_price) }}</td>
+      <td>{{ "{:,.2f}".format(line.profit or 0) }}</td>
+      <td>{{ line.pnr }}</td>
+      <td>{{ line.designator }}</td>
+      <td>{{ line.ticket_no }}</td>
       <td>{{ line.supplier.business_name if line.supplier else '-' }}</td>
       <td>
         <a href="{{ url_for('accounting_routes.edit_invoice_line', line_id=line.id) }}" class="btn btn-sm btn-primary">Edit</a>
