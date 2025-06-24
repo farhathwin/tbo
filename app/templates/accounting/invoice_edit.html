@@ -105,7 +105,7 @@
       </select>
     </div>
 
-    <div class="col-md-3">
+    <div class="col-md-3 pax-box">
       <label>Passenger</label>
       <select name="pax_id" class="form-select">
         <option value="">-- Select Pax --</option>
@@ -119,7 +119,7 @@
       <label>Base Fare</label>
       <input type="number" name="base_fare" id="base_fare" step="0.01" class="form-control" oninput="calcProfit()">
     </div>
-    <div class="col-md-2">
+    <div class="col-md-2 tax-box">
       <label>Tax</label>
       <input type="number" name="tax" id="tax" step="0.01" class="form-control" oninput="calcProfit()">
     </div>
@@ -132,15 +132,15 @@
       <input type="text" name="profit" id="profit" class="form-control" readonly>
     </div>
 
-    <div class="col-md-2 air-ticket-field">
-      <label>PNR</label>
+    <div class="col-md-2 pnr-box">
+      <label id="pnrLabel">PNR</label>
       <input type="text" name="pnr" class="form-control">
     </div>
-    <div class="col-md-2 iata-only-field">
+    <div class="col-md-2 iata-only-field" id="designatorBox">
       <label>Designator</label>
       <input type="text" name="designator" class="form-control">
     </div>
-    <div class="col-md-3 iata-only-field">
+    <div class="col-md-3 iata-only-field" id="ticketNoBox">
       <label>Ticket No</label>
       <input type="text" name="ticket_no" class="form-control" maxlength="18" pattern="\d{10,16}(-\d{1,2})?" title="10-16 digits, optionally followed by - and up to two digits">
     </div>
@@ -213,96 +213,12 @@
 
 
 <script>
-function toggleLineForm() {
-  const mainOption = document.getElementById('main_option').value;
-  document.getElementById('air_ticket_fields').style.display = mainOption === 'air_ticket' ? 'block' : 'none';
-  document.getElementById('other_fields').style.display = mainOption === 'other' ? 'block' : 'none';
-}
-
-function toggleAirlineFields() {
-  const airlineType = document.getElementById('airline_type').value;
-  document.querySelectorAll('.iata-only').forEach(el => {
-    el.style.display = airlineType === 'iata' ? 'block' : 'none';
-  });
-}
-
-function calcAirProfit() {
-  const base = parseFloat(document.querySelector('[name="base_fare"]').value) || 0;
-  const tax = parseFloat(document.querySelector('[name="tax"]').value) || 0;
-  const sell = parseFloat(document.querySelector('[name="sell"]').value) || 0;
-  document.querySelector('[name="profit"]').value = (sell - base - tax).toFixed(2);
-}
-
-function calcOtherProfit() {
-  const base = parseFloat(document.querySelector('[name="base_fare"]').value) || 0;
-  const sell = parseFloat(document.querySelector('[name="sell"]').value) || 0;
-  document.querySelector('[name="profit"]').value = (sell - base).toFixed(2);
-}
-</script>
-<script>
 document.addEventListener("DOMContentLoaded", function () {
-  const lineType = document.getElementById("lineType");
-  const airTypeBox = document.getElementById("airTicketTypeBox");
-  const otherTypeBox = document.getElementById("otherTypeBox");
-  const designatorBox = document.getElementById("designatorBox");
-  const ticketNoBox = document.getElementById("ticketNoBox");
-  const taxBox = document.querySelector(".tax-box");
-  const pnrBox = document.querySelector(".pnr-box");
-  const paxBox = document.querySelector(".pax-box");
-
-  lineType.addEventListener("change", function () {
-    const val = this.value;
-    airTypeBox.classList.add("d-none");
-    otherTypeBox.classList.add("d-none");
-    designatorBox.classList.add("d-none");
-    ticketNoBox.classList.add("d-none");
-    taxBox.classList.add("d-none");
-    pnrBox.classList.add("d-none");
-    paxBox.classList.add("d-none");
-
-    if (val === "Air Ticket") {
-      airTypeBox.classList.remove("d-none");
-    } else if (val === "Other") {
-      otherTypeBox.classList.remove("d-none");
-      pnrBox.classList.remove("d-none");
-    }
-  });
-
-  document.getElementById("airTicketSubType")?.addEventListener("change", function () {
-    const type = this.value;
-    designatorBox.classList.add("d-none");
-    ticketNoBox.classList.add("d-none");
-    taxBox.classList.remove("d-none");
-    pnrBox.classList.remove("d-none");
-    paxBox.classList.remove("d-none");
-
-    if (type === "IATA") {
-      designatorBox.classList.remove("d-none");
-      ticketNoBox.classList.remove("d-none");
-    }
-  });
-
-  const calcProfit = () => {
-    const base = parseFloat(document.querySelector("[name='base_fare']").value || 0);
-    const tax = parseFloat(document.querySelector("[name='tax']")?.value || 0);
-    const sell = parseFloat(document.querySelector("[name='sell_price']").value || 0);
-    let profit = 0;
-
-    if (lineType.value === "Air Ticket") {
-      profit = sell - (base + tax);
-    } else {
-      profit = sell - base;
-    }
-
-    document.getElementById("profitDisplay").value = profit.toFixed(2);
-  };
-
-  document.querySelectorAll(".amount-field").forEach(input => {
-    input.addEventListener("input", calcProfit);
-  });
+  toggleTypeFields();
+  document.getElementById("type").addEventListener("change", toggleTypeFields);
+  document.getElementById("sub_type").addEventListener("change", toggleSubTypeFields);
 });
-</script>
-<script>
+
 function calcProfit() {
   const base = parseFloat(document.getElementById("base_fare").value) || 0;
   const tax = parseFloat(document.getElementById("tax").value) || 0;
@@ -323,20 +239,18 @@ function toggleTypeFields() {
   const subTypeSelect = document.getElementById("sub_type");
   subTypeSelect.innerHTML = '<option value="">-- Select Sub Type --</option>';
 
+  const pnrLabel = document.getElementById("pnrLabel");
+  document.querySelector('.tax-box').classList.add('d-none');
+  document.querySelector('.pax-box').classList.add('d-none');
+
   if (type === "Air Ticket") {
-    subTypeSelect.innerHTML += `
-      <option value="IATA">IATA Airline</option>
-      <option value="Budget">Budget Airline</option>
-    `;
+    subTypeSelect.innerHTML += '<option value="IATA">IATA Airline</option><option value="Budget">Budget Airline</option>';
+    document.querySelector('.tax-box').classList.remove('d-none');
+    document.querySelector('.pax-box').classList.remove('d-none');
+    pnrLabel.textContent = 'PNR';
   } else if (type === "Other") {
-    subTypeSelect.innerHTML += `
-      <option value="Hotel">Hotel</option>
-      <option value="Packages">Packages</option>
-      <option value="Transfer">Transfer</option>
-      <option value="Visa">Visa</option>
-      <option value="Incurrence">Incurrence</option>
-      <option value="Other">Other</option>
-    `;
+    subTypeSelect.innerHTML += '<option value="Hotel">Hotel</option><option value="Packages">Packages</option><option value="Transfer">Transfer</option><option value="Visa">Visa</option><option value="Insurance">Insurance</option><option value="Other">Other</option>';
+    pnrLabel.textContent = 'Reference';
   }
 
   toggleSubTypeFields();
@@ -345,15 +259,10 @@ function toggleTypeFields() {
 function toggleSubTypeFields() {
   const type = document.getElementById("type").value;
   const subType = document.getElementById("sub_type").value;
+  document.querySelectorAll('.iata-only-field').forEach(e => e.classList.add('d-none'));
 
-  document.querySelectorAll('.air-ticket-field').forEach(e => e.style.display = 'none');
-  document.querySelectorAll('.iata-only-field').forEach(e => e.style.display = 'none');
-
-  if (type === "Air Ticket") {
-    document.querySelectorAll('.air-ticket-field').forEach(e => e.style.display = 'block');
-    if (subType === "IATA") {
-      document.querySelectorAll('.iata-only-field').forEach(e => e.style.display = 'block');
-    }
+  if (type === "Air Ticket" && subType === "IATA") {
+    document.querySelectorAll('.iata-only-field').forEach(e => e.classList.remove('d-none'));
   }
 }
 </script>
