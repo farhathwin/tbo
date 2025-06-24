@@ -1702,6 +1702,8 @@ def add_invoice_line(invoice_id):
         else:
             profit = Decimal(0)
 
+        
+
         new_line = InvoiceLine(
             invoice_id=invoice.id,
             type=line_type,
