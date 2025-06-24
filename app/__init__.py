@@ -12,11 +12,11 @@ mail = Mail()
 sess = Session()
 migrate = Migrate()
 
-def create_app():
+def create_app(db_uri_override=None):
     app = Flask(__name__)
 
     # Main database config
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri_override or 'sqlite:///app.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = 'your_secret_key_here'
     app.config['SESSION_TYPE'] = 'filesystem'
