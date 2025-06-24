@@ -17,7 +17,7 @@
         <option value="">-- Select Sub Type --</option>
       </select>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 pax-box">
       <label>Passenger</label>
       <select name="pax_id" class="form-select">
         <option value="">-- Select Pax --</option>
@@ -30,7 +30,7 @@
       <label>Base Fare</label>
       <input type="number" name="base_fare" id="base_fare" step="0.01" class="form-control" value="{{ line.base_fare }}" oninput="calcProfit()">
     </div>
-    <div class="col-md-2">
+    <div class="col-md-2 tax-box">
       <label>Tax</label>
       <input type="number" name="tax" id="tax" step="0.01" class="form-control" value="{{ line.tax }}" oninput="calcProfit()">
     </div>
@@ -42,15 +42,15 @@
       <label>Profit</label>
       <input type="text" name="profit" id="profit" class="form-control" value="{{ line.profit }}" readonly>
     </div>
-    <div class="col-md-2 air-ticket-field">
-      <label>PNR</label>
+    <div class="col-md-2 pnr-box">
+      <label id="pnrLabel">PNR</label>
       <input type="text" name="pnr" class="form-control" value="{{ line.pnr }}">
     </div>
-    <div class="col-md-2 iata-only-field">
+    <div class="col-md-2 iata-only-field" id="designatorBox">
       <label>Designator</label>
       <input type="text" name="designator" class="form-control" value="{{ line.designator }}">
     </div>
-    <div class="col-md-3 iata-only-field">
+    <div class="col-md-3 iata-only-field" id="ticketNoBox">
       <label>Ticket No</label>
       <input type="text" name="ticket_no" class="form-control" maxlength="18" value="{{ line.ticket_no }}" pattern="\d{10,16}(-\d{1,2})?" title="10-16 digits, optionally followed by - and up to two digits">
     </div>
@@ -90,31 +90,38 @@ function toggleTypeFields() {
   const type = document.getElementById("type").value;
   const subTypeSelect = document.getElementById("sub_type");
   subTypeSelect.innerHTML = '<option value="">-- Select Sub Type --</option>';
+
+  const pnrLabel = document.getElementById("pnrLabel");
+  document.querySelector('.tax-box').classList.add('d-none');
+  document.querySelector('.pax-box').classList.add('d-none');
+
   if (type === "Air Ticket") {
     subTypeSelect.innerHTML += '<option value="IATA">IATA Airline</option><option value="Budget">Budget Airline</option>';
+    document.querySelector('.tax-box').classList.remove('d-none');
+    document.querySelector('.pax-box').classList.remove('d-none');
+    pnrLabel.textContent = 'PNR';
   } else if (type === "Other") {
-    subTypeSelect.innerHTML += '<option value="Hotel">Hotel</option><option value="Packages">Packages</option><option value="Transfer">Transfer</option><option value="Visa">Visa</option><option value="Incurrence">Incurrence</option><option value="Other">Other</option>';
+    subTypeSelect.innerHTML += '<option value="Hotel">Hotel</option><option value="Packages">Packages</option><option value="Transfer">Transfer</option><option value="Visa">Visa</option><option value="Insurance">Insurance</option><option value="Other">Other</option>';
+    pnrLabel.textContent = 'Reference';
   }
+
   toggleSubTypeFields();
 }
 
 function toggleSubTypeFields() {
   const type = document.getElementById("type").value;
   const subType = document.getElementById("sub_type").value;
-  document.querySelectorAll('.air-ticket-field').forEach(e => e.style.display = 'none');
-  document.querySelectorAll('.iata-only-field').forEach(e => e.style.display = 'none');
-  if (type === "Air Ticket") {
-    document.querySelectorAll('.air-ticket-field').forEach(e => e.style.display = 'block');
-    if (subType === "IATA") {
-      document.querySelectorAll('.iata-only-field').forEach(e => e.style.display = 'block');
-    }
+  document.querySelectorAll('.iata-only-field').forEach(e => e.classList.add('d-none'));
+  if (type === "Air Ticket" && subType === "IATA") {
+    document.querySelectorAll('.iata-only-field').forEach(e => e.classList.remove('d-none'));
   }
 }
 
 document.addEventListener("DOMContentLoaded", function() {
-  toggleTypeFields();
+  document.getElementById("type").addEventListener("change", toggleTypeFields);
+  document.getElementById("sub_type").addEventListener("change", toggleSubTypeFields);
   document.getElementById("sub_type").value = "{{ line.sub_type }}";
-  toggleSubTypeFields();
+  toggleTypeFields();
   calcProfit();
 });
 </script>
