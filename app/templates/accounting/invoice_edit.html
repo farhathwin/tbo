@@ -1,0 +1,338 @@
+{% extends 'base.html' %}
+{% block title %}Edit Invoice{% endblock %}
+{% block content %}
+<h3>Edit Invoice #{{ invoice.invoice_number }}</h3>
+<div class="mb-3">
+  <p><strong>Customer:</strong> {{ invoice.customer.full_name or invoice.customer.business_name }}</p>
+  <p><strong>Service Type:</strong> {{ invoice.service_type }}</p>
+  <p><strong>Date:</strong> {{ invoice.invoice_date.strftime('%Y-%m-%d') }}</p>
+  <p><strong>Status:</strong> <span class="badge bg-info">{{ invoice.status }}</span></p>
+  <p><strong>Total:</strong> {{ "{:,.2f}".format(invoice.total_amount) }}</p>
+</div>
+<hr>
+
+<h5>👤 Pax Details</h5>
+<form method="POST" action="{{ url_for('accounting_routes.add_pax_detail', invoice_id=invoice.id) }}">
+  <div class="row g-2">
+    <div class="col-md-3">
+      <label>Full Name</label>
+      <input type="text" name="full_name" class="form-control" required>
+    </div>
+    <div class="col-md-2">
+      <label>Passport No</label>
+      <input type="text" name="passport_no" class="form-control">
+    </div>
+    <div class="col-md-2">
+      <label>Nationality</label>
+      <input type="text" name="nationality" class="form-control">
+    </div>
+    <div class="col-md-2">
+      <label>Date of Birth</label>
+      <input type="date" name="dob" class="form-control">
+    </div>
+    <div class="col-md-2">
+      <label>Ticket Number</label>
+      <input type="text" name="ticket_number" class="form-control">
+    </div>
+    <div class="col-md-3">
+      <label>Remarks</label>
+      <input type="text" name="remarks" class="form-control">
+    </div>
+    <div class="col-md-1">
+      <label>&nbsp;</label>
+      <button type="submit" class="btn btn-success w-100">➕</button>
+    </div>
+  </div>
+</form>
+
+
+{% if invoice.pax_details %}
+<div class="mt-3">
+  <table class="table table-sm table-bordered">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Passport</th>
+        <th>Nationality</th>
+        <th>DOB</th>
+        <th>Ticket #</th>
+        <th>Remarks</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pax in invoice.pax_details %}
+      <tr>
+        <td>{{ pax.full_name }}</td>
+        <td>{{ pax.passport_no }}</td>
+        <td>{{ pax.nationality }}</td>
+        <td>{{ pax.dob.strftime('%Y-%m-%d') if pax.dob }}</td>
+        <td>{{ pax.ticket_number }}</td>
+        <td>{{ pax.remarks }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<hr>
+<h5>➕ Add Line Item</h5>
+<form method="POST" action="{{ url_for('accounting_routes.add_invoice_line', invoice_id=invoice.id) }}">
+  <div class="row g-2 mb-2">
+    <div class="col-md-2">
+      <label>Type</label>
+      <select name="type" id="type" class="form-select" required onchange="toggleTypeFields()">
+        <option value="">-- Select --</option>
+        <option value="Air Ticket">Air Ticket</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label>Sub Type</label>
+      <select name="sub_type" id="sub_type" class="form-select" required onchange="toggleSubTypeFields()">
+        <option value="">-- Select Sub Type --</option>
+      </select>
+    </div>
+
+    <div class="col-md-3">
+      <label>Passenger</label>
+      <select name="pax_id" class="form-select">
+        <option value="">-- Select Pax --</option>
+        {% for pax in invoice.pax_details %}
+        <option value="{{ pax.id }}">{{ pax.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-2">
+      <label>Base Fare</label>
+      <input type="number" name="base_fare" id="base_fare" step="0.01" class="form-control" oninput="calcProfit()">
+    </div>
+    <div class="col-md-2">
+      <label>Tax</label>
+      <input type="number" name="tax" id="tax" step="0.01" class="form-control" oninput="calcProfit()">
+    </div>
+    <div class="col-md-2">
+      <label>Sell Price</label>
+      <input type="number" name="sell_price" id="sell_price" step="0.01" class="form-control" oninput="calcProfit()" required>
+    </div>
+    <div class="col-md-2">
+      <label>Profit</label>
+      <input type="text" name="profit" id="profit" class="form-control" readonly>
+    </div>
+
+    <div class="col-md-2 air-ticket-field">
+      <label>PNR</label>
+      <input type="text" name="pnr" class="form-control">
+    </div>
+    <div class="col-md-2 iata-only-field">
+      <label>Designator</label>
+      <input type="text" name="designator" class="form-control">
+    </div>
+    <div class="col-md-3 iata-only-field">
+      <label>Ticket No</label>
+      <input type="text" name="ticket_no" class="form-control" maxlength="16" pattern="\d{10,16}">
+    </div>
+
+    <div class="col-md-3">
+      <label>Supplier</label>
+      <select name="supplier_id" class="form-select">
+        <option value="">-- None --</option>
+        {% for s in suppliers %}
+        <option value="{{ s.id }}">{{ s.business_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-1">
+      <label>&nbsp;</label>
+      <button type="submit" class="btn btn-success w-100">Add</button>
+    </div>
+  </div>
+</form>
+
+
+<hr>
+<h5>📦 Invoice Items</h5>
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Passenger</th>
+      <th>Description</th>
+      <th>Qty</th>
+      <th>Unit Price</th>
+      <th>Total</th>
+      <th>Supplier</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for line in invoice.lines %}
+    <tr>
+      <td>{{ line.pax.full_name if line.pax else '-' }}</td>
+      <td>{{ line.description }}</td>
+      <td>{{ line.quantity }}</td>
+      <td>{{ "{:,.2f}".format(line.unit_price) }}</td>
+      <td>{{ "{:,.2f}".format(line.total) }}</td>
+      <td>{{ line.supplier.business_name if line.supplier else '-' }}</td>
+      <td>
+        <a href="{{ url_for('accounting_routes.edit_invoice_line', line_id=line.id) }}" class="btn btn-sm btn-primary">Edit</a>
+        <a href="{{ url_for('accounting_routes.delete_invoice_line', line_id=line.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this line item?')">Delete</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<form method="POST" action="{{ url_for('accounting_routes.save_invoice', invoice_id=invoice.id) }}">
+  <button type="submit" class="btn btn-primary">💾 Save</button>
+</form>
+
+<a href="{{ url_for('accounting_routes.invoice_list') }}" class="btn btn-secondary mt-3">⬅ Back to Invoice List</a>
+{% endblock %}
+
+
+<script>
+function toggleLineForm() {
+  const mainOption = document.getElementById('main_option').value;
+  document.getElementById('air_ticket_fields').style.display = mainOption === 'air_ticket' ? 'block' : 'none';
+  document.getElementById('other_fields').style.display = mainOption === 'other' ? 'block' : 'none';
+}
+
+function toggleAirlineFields() {
+  const airlineType = document.getElementById('airline_type').value;
+  document.querySelectorAll('.iata-only').forEach(el => {
+    el.style.display = airlineType === 'iata' ? 'block' : 'none';
+  });
+}
+
+function calcAirProfit() {
+  const base = parseFloat(document.querySelector('[name="base_fare"]').value) || 0;
+  const tax = parseFloat(document.querySelector('[name="tax"]').value) || 0;
+  const sell = parseFloat(document.querySelector('[name="sell"]').value) || 0;
+  document.querySelector('[name="profit"]').value = (sell - base - tax).toFixed(2);
+}
+
+function calcOtherProfit() {
+  const base = parseFloat(document.querySelector('[name="base_fare"]').value) || 0;
+  const sell = parseFloat(document.querySelector('[name="sell"]').value) || 0;
+  document.querySelector('[name="profit"]').value = (sell - base).toFixed(2);
+}
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const lineType = document.getElementById("lineType");
+  const airTypeBox = document.getElementById("airTicketTypeBox");
+  const otherTypeBox = document.getElementById("otherTypeBox");
+  const designatorBox = document.getElementById("designatorBox");
+  const ticketNoBox = document.getElementById("ticketNoBox");
+  const taxBox = document.querySelector(".tax-box");
+  const pnrBox = document.querySelector(".pnr-box");
+  const paxBox = document.querySelector(".pax-box");
+
+  lineType.addEventListener("change", function () {
+    const val = this.value;
+    airTypeBox.classList.add("d-none");
+    otherTypeBox.classList.add("d-none");
+    designatorBox.classList.add("d-none");
+    ticketNoBox.classList.add("d-none");
+    taxBox.classList.add("d-none");
+    pnrBox.classList.add("d-none");
+    paxBox.classList.add("d-none");
+
+    if (val === "Air Ticket") {
+      airTypeBox.classList.remove("d-none");
+    } else if (val === "Other") {
+      otherTypeBox.classList.remove("d-none");
+      pnrBox.classList.remove("d-none");
+    }
+  });
+
+  document.getElementById("airTicketSubType")?.addEventListener("change", function () {
+    const type = this.value;
+    designatorBox.classList.add("d-none");
+    ticketNoBox.classList.add("d-none");
+    taxBox.classList.remove("d-none");
+    pnrBox.classList.remove("d-none");
+    paxBox.classList.remove("d-none");
+
+    if (type === "IATA") {
+      designatorBox.classList.remove("d-none");
+      ticketNoBox.classList.remove("d-none");
+    }
+  });
+
+  const calcProfit = () => {
+    const base = parseFloat(document.querySelector("[name='base_fare']").value || 0);
+    const tax = parseFloat(document.querySelector("[name='tax']")?.value || 0);
+    const sell = parseFloat(document.querySelector("[name='sell_price']").value || 0);
+    let profit = 0;
+
+    if (lineType.value === "Air Ticket") {
+      profit = sell - (base + tax);
+    } else {
+      profit = sell - base;
+    }
+
+    document.getElementById("profitDisplay").value = profit.toFixed(2);
+  };
+
+  document.querySelectorAll(".amount-field").forEach(input => {
+    input.addEventListener("input", calcProfit);
+  });
+});
+</script>
+<script>
+function calcProfit() {
+  const base = parseFloat(document.getElementById("base_fare").value) || 0;
+  const tax = parseFloat(document.getElementById("tax").value) || 0;
+  const sell = parseFloat(document.getElementById("sell_price").value) || 0;
+  const type = document.getElementById("type").value;
+
+  let profit = 0;
+  if (type === "Air Ticket") {
+    profit = sell - (base + tax);
+  } else if (type === "Other") {
+    profit = sell - base;
+  }
+  document.getElementById("profit").value = profit.toFixed(2);
+}
+
+function toggleTypeFields() {
+  const type = document.getElementById("type").value;
+  const subTypeSelect = document.getElementById("sub_type");
+  subTypeSelect.innerHTML = '<option value="">-- Select Sub Type --</option>';
+
+  if (type === "Air Ticket") {
+    subTypeSelect.innerHTML += `
+      <option value="IATA">IATA Airline</option>
+      <option value="Budget">Budget Airline</option>
+    `;
+  } else if (type === "Other") {
+    subTypeSelect.innerHTML += `
+      <option value="Hotel">Hotel</option>
+      <option value="Packages">Packages</option>
+      <option value="Transfer">Transfer</option>
+      <option value="Visa">Visa</option>
+      <option value="Incurrence">Incurrence</option>
+      <option value="Other">Other</option>
+    `;
+  }
+
+  toggleSubTypeFields();
+}
+
+function toggleSubTypeFields() {
+  const type = document.getElementById("type").value;
+  const subType = document.getElementById("sub_type").value;
+
+  document.querySelectorAll('.air-ticket-field').forEach(e => e.style.display = 'none');
+  document.querySelectorAll('.iata-only-field').forEach(e => e.style.display = 'none');
+
+  if (type === "Air Ticket") {
+    document.querySelectorAll('.air-ticket-field').forEach(e => e.style.display = 'block');
+    if (subType === "IATA") {
+      document.querySelectorAll('.iata-only-field').forEach(e => e.style.display = 'block');
+    }
+  }
+}
+</script>

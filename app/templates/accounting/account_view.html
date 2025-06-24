@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}View Account{% endblock %}
+
+{% block content %}
+<h3>View Account</h3>
+
+<!-- Show Account Balance -->
+<div class="alert alert-info w-50">
+  <strong>Current Balance:</strong> {{ account_balance | round(2) }}
+</div>
+
+<!-- Opening Balance Form -->
+<form method="POST" class="mb-4 w-50">
+  <h5>Set Opening Balance</h5>
+  <div class="input-group">
+    <input type="number" step="0.01" name="opening_balance" class="form-control" placeholder="Enter amount" required>
+    <select name="side" class="form-select" required>
+      <option value="debit">Debit</option>
+      <option value="credit">Credit</option>
+    </select>
+    <button type="submit" class="btn btn-primary">Post Opening Balance</button>
+  </div>
+</form>
+
+<!-- Account Details Table -->
+<table class="table table-bordered w-50">
+  <tr>
+    <th>Account Type</th>
+    <td>{{ account.account_type }}</td>
+  </tr>
+  <tr>
+    <th>Account Code</th>
+    <td>{{ account.account_code }}</td>
+  </tr>
+  <tr>
+    <th>Account Name</th>
+    <td>{{ account.account_name }}</td>
+  </tr>
+  <tr>
+    <th>Reconcilable</th>
+    <td>{{ "Yes" if account.is_reconcilable else "No" }}</td>
+  </tr>
+  <tr>
+    <th>Created By</th>
+    <td>{{ account.created_by }}</td>
+  </tr>
+  <tr>
+    <th>Status</th>
+    <td>
+      <span class="badge bg-{{ 'success' if account.is_active else 'secondary' }}">
+        {{ "Active" if account.is_active else "Disabled" }}
+      </span>
+    </td>
+  </tr>
+</table>
+
+<!-- Action Buttons -->
+<div class="d-flex gap-2">
+  <a href="{{ url_for('accounting_routes.toggle_account_status', account_id=account.id) }}"
+     class="btn btn-{{ 'danger' if account.is_active else 'success' }}">
+    {{ 'Disable' if account.is_active else 'Enable' }}
+  </a>
+
+  <a href="{{ url_for('accounting_routes.chart_of_accounts') }}" class="btn btn-secondary">⬅ Back</a>
+</div>
+{% endblock %}

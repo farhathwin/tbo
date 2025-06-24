@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}Edit Customer{% endblock %}
+
+{% block content %}
+<h3>Edit Customer</h3>
+
+<!-- intl-tel-input -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css" />
+
+<style>
+  .iti {
+    width: 100%;
+  }
+
+  .iti__country-list {
+    z-index: 9999 !important;
+    max-height: 250px;
+    overflow-y: auto;
+    background-color: white;
+  }
+</style>
+
+<form method="POST" id="editCustomerForm">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-2">
+      <label>Type</label>
+      <select name="customer_type" class="form-select" required onchange="toggleCustomerFields(this.value)">
+        <option value="">-- Select Type --</option>
+        <option value="Customer" {% if customer.customer_type == 'Customer' %}selected{% endif %}>Customer</option>
+        <option value="Agent" {% if customer.customer_type == 'Agent' %}selected{% endif %}>Agent</option>
+        <option value="Corporate" {% if customer.customer_type == 'Corporate' %}selected{% endif %}>Corporate</option>
+      </select>
+    </div>
+
+    <div class="col-md-2" id="titleDiv" style="display:none;">
+      <label>Title</label>
+      <select name="title" class="form-select">
+        <option value="">-- Select --</option>
+        <option value="Mr." {% if customer.title == 'Mr.' %}selected{% endif %}>Mr.</option>
+        <option value="Ms." {% if customer.title == 'Ms.' %}selected{% endif %}>Ms.</option>
+        <option value="Mrs." {% if customer.title == 'Mrs.' %}selected{% endif %}>Mrs.</option>
+      </select>
+    </div>
+
+    <div class="col-md-3" id="fullNameDiv" style="display:none;">
+      <label>Full Name</label>
+      <input type="text" name="full_name" class="form-control" value="{{ customer.full_name or '' }}">
+    </div>
+
+    <div class="col-md-3" id="businessNameDiv" style="display:none;">
+      <label>Business Name</label>
+      <input type="text" name="business_name" class="form-control" value="{{ customer.business_name or '' }}">
+    </div>
+
+    <div class="col-md-2" style="position: relative; z-index: 1055; min-width: 280px;">
+      <label>Phone</label>
+      <input type="tel" id="phone" name="phone" class="form-control" required>
+    </div>
+
+    <div class="col-md-1">
+      <button type="submit" class="btn btn-success w-100">💾 Save</button>
+    </div>
+  </div>
+</form>
+
+<a href="{{ url_for('accounting_routes.customer_list') }}" class="btn btn-secondary mt-3">⬅ Cancel</a>
+
+<!-- Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/intlTelInput.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/utils.js"></script>
+
+<script>
+function toggleCustomerFields(type) {
+  document.getElementById('titleDiv').style.display = (type === 'Customer') ? 'block' : 'none';
+  document.getElementById('fullNameDiv').style.display = (type === 'Customer') ? 'block' : 'none';
+  document.getElementById('businessNameDiv').style.display = (type === 'Agent' || type === 'Corporate') ? 'block' : 'none';
+}
+toggleCustomerFields("{{ customer.customer_type }}");
+
+// IntlTelInput
+const phoneInput = document.querySelector("#phone");
+const iti = window.intlTelInput(phoneInput, {
+  separateDialCode: true,
+  initialCountry: "auto",
+  geoIpLookup: function (success, failure) {
+    fetch('https://ipapi.co/json')
+      .then(res => res.json())
+      .then(data => success(data.country_code))
+      .catch(() => success("US"));
+  },
+  utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/utils.js"
+});
+
+// Set initial phone value
+iti.setNumber("{{ customer.phone_number }}");
+
+// Handle form submit
+document.getElementById('editCustomerForm').addEventListener('submit', function (e) {
+  if (!iti.isValidNumber()) {
+    e.preventDefault();
+    alert("❌ Please enter a valid phone number.");
+    return;
+  }
+
+  // Optional AJAX duplicate check before submitting
+  const phone = iti.getNumber();
+  fetch(`/check-duplicate-phone?phone=${encodeURIComponent(phone)}&exclude_id={{ customer.id }}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.exists) {
+        e.preventDefault();
+        alert("❌ Phone number already exists.");
+      } else {
+        phoneInput.value = phone;
+        this.submit();
+      }
+    })
+    .catch(() => {
+      phoneInput.value = phone;
+      this.submit();
+    });
+
+  e.preventDefault(); // prevent default while checking
+});
+</script>
+{% endblock %}

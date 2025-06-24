@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+  <div class="text-center">
+    <h2 class="mb-3">{{ role }} Dashboard</h2>
+
+    {% if role == "SuperXuser" %}
+      <p>Welcome, you have access to all administrative features.</p>
+    {% elif role == "Admin" %}
+      <p>Admin dashboard with access to manage users and company settings.</p>
+    {% elif role == "Accountant" %}
+      <p>Accountant dashboard for handling financial operations.</p>
+    {% elif role == "Sales Staff" %}
+      <p>Sales dashboard to manage leads and bookings.</p>
+    {% elif role == "Viewer" %}
+      <p>Read-only access to view system data.</p>
+    {% else %}
+      <p>Unknown role.</p>
+    {% endif %}
+  </div>
+{% endblock %}

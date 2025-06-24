@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Invoices{% endblock %}
+{% block content %}
+<h3>Create Invoice</h3>
+<form method="POST">
+  <div class="row g-3">
+    <div class="col-md-3">
+      <label>Customer</label>
+      <select name="customer_id" class="form-select" required>
+        <option value="">-- Select --</option>
+        {% for cust in customers %}
+        <option value="{{ cust.id }}">{{ cust.full_name or cust.business_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label>Service Type</label>
+      <select name="service_type" class="form-select" required>
+        <option value="">-- Select --</option>
+        <option value="Flight">Flight</option>
+        <option value="Hotel">Hotel</option>
+        <option value="Visa">Visa</option>
+        <option value="Tour">Tour</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label>Invoice Date</label>
+      <input type="date" name="invoice_date" class="form-control" value="{{ current_date or '' }}" required>
+    </div>
+    <div class="col-md-2">
+      <label>Currency</label>
+      <input type="text" name="currency" class="form-control" value="LKR">
+    </div>
+    <div class="col-md-4">
+      <label>Notes</label>
+      <textarea name="notes" class="form-control"></textarea>
+    </div>
+    <div class="col-md-2">
+      <label>&nbsp;</label>
+      <button type="submit" class="btn btn-primary w-100">➕ Create Invoice</button>
+    </div>
+  </div>
+</form>
+
+<hr>
+<h4>📄 Existing Invoices</h4>
+<table class="table table-bordered mt-3">
+  <thead>
+    <tr>
+      <th>Invoice #</th>
+      <th>Customer</th>
+      <th>Date</th>
+      <th>Service</th>
+      <th>Total</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for invoice in invoices %}
+    <tr>
+      <td>{{ invoice.invoice_number }}</td>
+      <td>{{ invoice.customer.full_name or invoice.customer.business_name }}</td>
+      <td>{{ invoice.invoice_date.strftime('%Y-%m-%d') }}</td>
+      <td>{{ invoice.service_type }}</td>
+      <td>{{ "{:,.2f}".format(invoice.total_amount) }}</td>
+      <td><span class="badge bg-info">{{ invoice.status }}</span></td>
+      <td>
+        <a href="{{ url_for('accounting_routes.edit_invoice', invoice_id=invoice.id) }}" class="btn btn-sm btn-primary">Edit</a>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="text-center text-muted">No invoices found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}
+

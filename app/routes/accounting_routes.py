@@ -1,0 +1,1852 @@
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response, render_template_string, Response
+from datetime import datetime, date
+from app.models.models import FiscalYear,Account, AccountType, CompanyProfile ,JournalEntry, JournalLine, Customer, Supplier, CashBank, Invoice, InvoiceLine, PaxDetail
+from app.routes.register_routes import current_tenant_session
+from sqlalchemy import or_, and_, func
+from sqlalchemy.orm import joinedload
+from math import ceil
+from io import BytesIO
+from xhtml2pdf import pisa
+from markupsafe import Markup
+import pandas as pd
+from sqlalchemy.orm import scoped_session
+import phonenumbers
+from phonenumbers import parse, is_valid_number, format_number, PhoneNumberFormat, NumberParseException
+from sqlalchemy.exc import SQLAlchemyError
+from decimal import Decimal
+import uuid
+
+
+
+accounting_routes = Blueprint('accounting_routes', __name__)
+
+
+
+@accounting_routes.route('/fiscal-years', methods=['GET', 'POST'])
+def manage_fiscal_years():
+    if 'domain' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    if request.method == 'POST':
+        if 'set_active' in request.form:
+            # Handle activation form
+            selected_id = request.form.get('active_fiscal_id')
+            if selected_id:
+                # Set all to inactive first
+                tenant_session.query(FiscalYear).filter_by(company_id=company_id).update({FiscalYear.is_closed: False})
+                # Set selected to active
+                tenant_session.query(FiscalYear).filter_by(company_id=company_id, id=selected_id).update({FiscalYear.is_closed: True})
+                tenant_session.commit()
+                flash("✅ Fiscal year updated successfully.", "success")
+            else:
+                flash("❌ Please select a fiscal year to activate.", "danger")
+
+        elif request.form.get("action") == "add":
+            # Handle add new fiscal year
+            name = request.form['name']
+            start_date = datetime.strptime(request.form['start_date'], '%Y-%m-%d')
+            end_date = datetime.strptime(request.form['end_date'], '%Y-%m-%d')
+
+            fiscal = FiscalYear(
+                company_id=company_id,
+                name=name,
+                year_name=name,
+                start_date=start_date,
+                end_date=end_date,
+                is_closed=False  # default new fiscal years as inactive
+            )
+            tenant_session.add(fiscal)
+            tenant_session.commit()
+            flash("✅ Fiscal year created successfully.", "success")
+
+        return redirect(url_for('accounting_routes.manage_fiscal_years'))
+
+    fiscal_years = tenant_session.query(FiscalYear).filter_by(company_id=company_id).order_by(FiscalYear.start_date.desc()).all()
+    return render_template('accounting/fiscal_years.html', fiscal_years=fiscal_years)
+
+
+
+
+def build_account_type_tree(account_types):
+    tree = []
+    lookup = {atype.id: {"node": atype, "children": []} for atype in account_types}
+    root_ids = []
+
+    for atype in account_types:
+        if atype.parent_id:
+            lookup[atype.parent_id]["children"].append(lookup[atype.id])
+        else:
+            root_ids.append(atype.id)
+
+    for rid in root_ids:
+        tree.append(lookup[rid])
+    return tree
+
+
+@accounting_routes.route('/chart-of-accounts', methods=['GET', 'POST'])
+def chart_of_accounts():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    # Handle form submission to create a new account
+    if request.method == 'POST':
+        account_type = request.form['account_type']
+        account_code = request.form['account_code']
+        account_name = request.form['account_name']
+        is_reconcilable = 'is_reconcilable' in request.form
+        
+
+        # 🔒 Check for duplicate account_code in the same company
+        existing = tenant_session.query(Account).filter_by(
+            company_id=company_id,
+            account_code=account_code
+        ).first()
+
+        if existing:
+            flash("❌ Account code already exists. Please use a unique code.", "danger")
+            return redirect(url_for('accounting_routes.chart_of_accounts'))
+
+        # ✅ If no duplicate, insert new account
+        account = Account(
+            company_id=company_id,
+            account_type=account_type,
+            account_code=account_code,
+            account_name=account_name,
+            is_reconcilable=is_reconcilable,
+            created_by=session['user_id']
+        )
+        tenant_session.add(account)
+        tenant_session.commit()
+        flash("✅ Account added successfully", "success")
+        return redirect(url_for('accounting_routes.chart_of_accounts'))
+
+    # Retrieve company profile
+    company = tenant_session.query(CompanyProfile).filter_by(company_id=company_id).first()
+    if not company:
+        flash("❌ Company profile not found. Please complete company setup first.", "danger")
+        return redirect(url_for('register_routes.profile_settings'))
+
+    # Seed account types if not initialized
+    if not company.account_types_initialized:
+        seed_default_account_types(tenant_session, company_id)
+    
+    # Fetch all account types (including headers)
+    all_account_types = tenant_session.query(AccountType)\
+        .filter_by(company_id=company_id)\
+        .order_by(AccountType.parent_id, AccountType.name).all()
+
+    # Split into selectable and non-selectable (headers)
+    selectable_types = [t for t in all_account_types if not t.is_header]
+    accounts = tenant_session.query(Account).filter_by(company_id=company_id).all()
+
+    
+    account_types_raw = tenant_session.query(AccountType)\
+        .filter_by(company_id=company_id).order_by(AccountType.sort_order).all()
+    account_types_tree = build_account_type_tree(account_types_raw)
+
+    return render_template(
+        'accounting/chart_of_accounts.html',
+        accounts=accounts,
+        account_types_tree=account_types_tree
+    )
+
+
+def seed_default_account_types(session, company_id):
+    default_data = [
+        {"name": "Balance Sheet", "is_header": True},
+        {"name": "Assets", "parent": "Balance Sheet"},
+        {"name": "Receivable", "parent": "Assets"},
+        {"name": "Bank, Cash & Wallets", "parent": "Assets"},
+        {"name": "Current Assets", "parent": "Assets"},
+        {"name": "Non Current Assets", "parent": "Assets"},
+        {"name": "Pre Payments", "parent": "Assets"},
+        {"name": "Fixed Assets", "parent": "Assets"},
+        {"name": "Liability", "parent": "Balance Sheet"},
+        {"name": "Payable", "parent": "Liability"},
+        {"name": "Credit Card", "parent": "Liability"},
+        {"name": "Current Liability", "parent": "Liability"},
+        {"name": "Non Current Liability", "parent": "Liability"},
+        {"name": "Equity", "parent": "Balance Sheet"},
+        {"name": "Equity", "parent": "Equity"},
+        {"name": "Current Year Profit", "parent": "Equity"},
+        {"name": "Profit & Loss", "is_header": True},
+        {"name": "Income", "parent": "Profit & Loss"},
+        {"name": "Other Income", "parent": "Income"},
+        {"name": "Expenses", "parent": "Profit & Loss"},
+        {"name": "Other Expenses", "parent": "Expenses"},
+        {"name": "Depreciation", "parent": "Expenses"},
+        {"name": "Cost of Sales", "parent": "Expenses"},
+    ]
+
+    created = {}
+
+    for index, item in enumerate(default_data, start=1):
+        parent_obj = created.get(item.get("parent"))
+        acct_type = AccountType(
+            company_id=company_id,
+            name=item["name"],
+            is_header=item.get("is_header", False),
+            parent_id=parent_obj.id if parent_obj else None,
+            sort_order=index  # Set order explicitly
+        )
+        session.add(acct_type)
+        session.flush()  # Ensures .id is available for children
+        created[item["name"]] = acct_type
+
+    company = session.query(CompanyProfile).filter_by(company_id=company_id).first()
+    company.account_types_initialized = True
+    session.commit()
+
+def get_account_type_hierarchy(session, company_id):
+    all_types = session.query(AccountType).filter_by(company_id=company_id).order_by(AccountType.sort_order).all()
+    tree = []
+
+    def build_branch(parent, level):
+        for node in [x for x in all_types if x.parent_id == (parent.id if parent else None)]:
+            node.level = level
+            tree.append(node)
+            build_branch(node, level + 1)
+
+    build_branch(None, 0)
+    return tree
+
+@accounting_routes.route('/account/view/<int:account_id>', methods=['GET', 'POST'])
+def view_account(account_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session['user_id']
+
+    account = tenant_session.query(Account).filter_by(id=account_id, company_id=company_id).first()
+    if not account:
+        flash("❌ Account not found", "danger")
+        return redirect(url_for('accounting_routes.chart_of_accounts'))
+
+    # Calculate balance
+    balance = 0
+    for line in account.journal_lines:
+        balance += (line.debit or 0) - (line.credit or 0)
+
+    if request.method == 'POST':
+        amount = float(request.form['opening_balance'])
+        side = request.form['side']
+        if amount <= 0:
+            flash("❌ Amount must be greater than zero.", "danger")
+            return redirect(request.url)
+
+        # Get or create Opening Balance Suspense account
+        suspense = tenant_session.query(Account).filter_by(
+            company_id=company_id,
+            account_name='Opening Balance Suspense'
+        ).first()
+
+        if not suspense:
+            suspense = Account(
+                company_id=company_id,
+                account_type='Equity',
+                account_code='9999',
+                account_name='Opening Balance Suspense',
+                is_active=True,
+                is_reconcilable=False,
+                created_by=user_id
+            )
+            tenant_session.add(suspense)
+            tenant_session.flush()
+
+        # Create a journal entry
+        fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=True).first()
+        if not fiscal_year:
+            flash("⚠️ No active fiscal year.", "warning")
+            return redirect(request.url)
+
+        journal = JournalEntry(
+            company_id=company_id,
+            date=datetime.today().date(),
+            reference="OPENING_BALANCE",
+            narration=f"Opening Balance for {account.account_name}",
+            created_by=user_id,
+            fiscal_year_id=fiscal_year.id
+        )
+        tenant_session.add(journal)
+        tenant_session.flush()
+
+        # Post lines: one for the account, one for the suspense
+        if side == "debit":
+            lines = [
+                JournalLine(entry_id=journal.id, account_id=account.id, debit=amount, credit=0, narration="Opening"),
+                JournalLine(entry_id=journal.id, account_id=suspense.id, debit=0, credit=amount, narration="Opening")
+            ]
+        else:
+            lines = [
+                JournalLine(entry_id=journal.id, account_id=account.id, debit=0, credit=amount, narration="Opening"),
+                JournalLine(entry_id=journal.id, account_id=suspense.id, debit=amount, credit=0, narration="Opening")
+            ]
+        tenant_session.add_all(lines)
+        tenant_session.commit()
+
+        flash("✅ Opening balance posted.", "success")
+        return redirect(request.url)
+
+    return render_template('accounting/account_view.html', account=account, account_balance=balance)
+
+
+
+@accounting_routes.route('/accounts/<int:account_id>/edit', methods=['GET', 'POST'])
+def edit_account(account_id):
+    tenant_session = current_tenant_session()
+    account = tenant_session.query(Account).get(account_id)
+
+    if not account:
+        flash("❌ Account not found", "danger")
+        return redirect(url_for('accounting_routes.chart_of_accounts'))
+
+    account_types = tenant_session.query(AccountType).filter_by(company_id=account.company_id).all()
+    account_types = sorted(account_types, key=lambda at: (not at.is_header, at.name.lower()))
+
+    if request.method == 'POST':
+        account.account_type = request.form['account_type']
+        account.account_code = request.form['account_code']
+        account.account_name = request.form['account_name']
+        account.is_reconcilable = 'is_reconcilable' in request.form
+
+        tenant_session.commit()
+        flash("✅ Account updated successfully", "success")
+        return redirect(url_for('accounting_routes.chart_of_accounts'))
+
+    return render_template('accounting/account_edit.html', account=account, account_types=account_types)
+
+@accounting_routes.route('/chart-of-accounts/<int:account_id>/toggle-status', methods=['GET'])
+def toggle_account_status(account_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    account = tenant_session.query(Account).filter_by(id=account_id, company_id=company_id).first()
+    if not account:
+        flash("❌ Account not found", "danger")
+        return redirect(url_for('accounting_routes.chart_of_accounts'))
+
+    account.is_active = not account.is_active
+    tenant_session.commit()
+
+    flash(f"✅ Account {'enabled' if account.is_active else 'disabled'} successfully.", "success")
+    return redirect(url_for('accounting_routes.view_account', account_id=account.id))
+
+
+def generate_journal_reference(session, company_id):
+    last_entry = (
+        session.query(JournalEntry)
+        .filter_by(company_id=company_id)
+        .order_by(JournalEntry.id.desc())
+        .first()
+    )
+
+    if last_entry and last_entry.reference and last_entry.reference.startswith("JO"):
+        try:
+            number = int(last_entry.reference[2:]) + 1
+        except ValueError:
+            number = 1
+    else:
+        number = 1
+
+    return f"JO{number:06d}"
+
+
+@accounting_routes.route('/journal-entry', methods=['GET', 'POST'])
+def journal_entry():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session['user_id']
+
+    accounts = tenant_session.query(Account).filter_by(company_id=company_id, is_active=True).all()
+    fiscal_year = tenant_session.query(FiscalYear).filter(
+        FiscalYear.company_id == company_id,
+        FiscalYear.is_closed == True
+    ).first()
+
+    if not fiscal_year:
+        flash("⚠️ Active fiscal year not found. Please configure it before journal entries.", "danger")
+        return redirect(url_for('accounting_routes.chart_of_accounts'))
+
+    if request.method == 'POST':
+        date_str = request.form.get('date')
+        ref = request.form.get('reference', '').strip()
+        if not ref:
+            ref = generate_journal_reference(tenant_session, company_id)
+        narration = request.form.get('narration', '').strip()
+        account_ids = request.form.getlist('account_id[]')
+        debits = request.form.getlist('debit[]')
+        credits = request.form.getlist('credit[]')
+        line_narrations = request.form.getlist('line_narration[]')
+
+        print("account_ids:", account_ids)
+        print("debits:", debits)
+        print("credits:", credits)
+        print("line_narrations:", line_narrations)
+
+        # Only keep rows where account and either debit or credit are provided (not both zero or blank)
+        valid_rows = []
+        total_debit = 0.0
+        total_credit = 0.0
+        row_count = len(account_ids)
+
+        for idx in range(row_count):
+            acc_id = (account_ids[idx] or "").strip()
+            debit_raw = (debits[idx] if idx < len(debits) else "").strip()
+            credit_raw = (credits[idx] if idx < len(credits) else "").strip()
+            narr = (line_narrations[idx] if idx < len(line_narrations) else "").strip()
+            try:
+                debit = float(debit_raw or 0)
+            except (ValueError, TypeError):
+                debit = 0.0
+            try:
+                credit = float(credit_raw or 0)
+            except (ValueError, TypeError):
+                credit = 0.0
+            narr = (narr or '').strip()
+
+            if not acc_id or (debit == 0.0 and credit == 0.0):
+                continue  # skip rows with no account or both zero
+
+            valid_rows.append({
+                "account_id": acc_id,
+                "debit": debit,
+                "credit": credit,
+                "narration": narr
+            })
+            total_debit += debit
+            total_credit += credit
+
+        print("VALID ROWS:", valid_rows)
+        print("Total debit:", total_debit)
+        print("Total credit:", total_credit)
+
+        # for form refill on error
+        form_data = {
+            "date": date_str,
+            "reference": ref,
+            "narration": narration,
+            "account_id": [row["account_id"] for row in valid_rows] or [""],
+            "debit": [str(row["debit"]) for row in valid_rows] or [""],
+            "credit": [str(row["credit"]) for row in valid_rows] or [""],
+            "line_narration": [row["narration"] for row in valid_rows] or [""],
+        }
+
+        # Date validation
+        try:
+            date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            flash("❌ Invalid date format.", "danger")
+            return render_template("accounting/journal_entry.html", accounts=accounts, fiscal_year=fiscal_year, form_data=form_data)
+
+        if not (fiscal_year.start_date <= date <= fiscal_year.end_date):
+            flash("❌ Date not within active fiscal year.", "danger")
+            return render_template("accounting/journal_entry.html", accounts=accounts, fiscal_year=fiscal_year, form_data=form_data)
+
+        if not valid_rows:
+            flash("❌ No valid journal lines found.", "danger")
+            return render_template("accounting/journal_entry.html", accounts=accounts, fiscal_year=fiscal_year, form_data=form_data)
+
+        # Use round to avoid floating point errors (1.1+2.2 != 3.3 due to float)
+        if round(total_debit, 2) != round(total_credit, 2):
+            flash("❌ Debit and Credit must balance.", "danger")
+            return render_template("accounting/journal_entry.html", accounts=accounts, fiscal_year=fiscal_year, form_data=form_data)
+
+        # Create entry and lines
+        new_entry = JournalEntry(
+            company_id=company_id,
+            date=date,
+            reference=ref,
+            narration=narration,
+            created_by=user_id,
+            fiscal_year_id=fiscal_year.id
+        )
+        tenant_session.add(new_entry)
+        tenant_session.flush()
+
+        lines = []
+        for row in valid_rows:
+            line = JournalLine(
+                entry_id=new_entry.id,
+                account_id=row["account_id"],
+                debit=row["debit"],
+                credit=row["credit"],
+                narration=row["narration"]
+            )
+            lines.append(line)
+
+        
+
+        tenant_session.add_all(lines)
+        tenant_session.commit()
+
+        flash("✅ Journal Entry saved successfully.", "success")
+        return redirect(url_for('accounting_routes.journal_entry'))
+
+    # GET method
+    empty_form = {
+        "date": datetime.today().strftime('%Y-%m-%d'),
+        "reference": generate_journal_reference(tenant_session, company_id),
+        "narration": "",
+        "account_id": [""],
+        "debit": [""],
+        "credit": [""],
+        "line_narration": [""]
+    }
+
+    return render_template("accounting/journal_entry.html", accounts=accounts, fiscal_year=fiscal_year, form_data=empty_form)
+
+
+
+
+@accounting_routes.route('/journal-list', methods=['GET'])
+def journal_list():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    
+    # Pagination params
+    page = int(request.args.get('page', 1))
+    per_page = 10
+    offset = (page - 1) * per_page
+
+    # Base query
+    query = tenant_session.query(JournalEntry).options(
+        joinedload(JournalEntry.lines).joinedload(JournalLine.account)
+    ).filter(JournalEntry.company_id == company_id)
+
+    # Filters
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    search = request.args.get('search', '')
+
+    if start_date:
+        query = query.filter(JournalEntry.date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+    if end_date:
+        query = query.filter(JournalEntry.date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+    if search:
+        query = query.filter(
+            or_(
+                JournalEntry.reference.ilike(f"%{search}%"),
+                JournalEntry.narration.ilike(f"%{search}%")
+            )
+        )
+
+    total_entries = query.count()
+    total_pages = ceil(total_entries / per_page)
+
+    journal_entries = query.order_by(JournalEntry.date.desc()).offset(offset).limit(per_page).all()
+
+    return render_template("accounting/journal_list.html", 
+        journal_entries=journal_entries,
+        page=page,
+        total_pages=total_pages,
+        total_entries=total_entries,
+        per_page=per_page
+    )
+
+
+@accounting_routes.route('/journal/reverse/<int:entry_id>', methods=['POST'])
+def reverse_journal_entry(entry_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session['user_id']
+
+    original_entry = tenant_session.query(JournalEntry).filter_by(id=entry_id, company_id=company_id).first()
+    if not original_entry:
+        flash("❌ Journal entry not found.", "danger")
+        return redirect(url_for('accounting_routes.journal_list'))
+
+    fiscal_year = tenant_session.query(FiscalYear).filter(
+        FiscalYear.company_id == company_id,
+        FiscalYear.is_closed == True
+    ).first()
+
+    if not fiscal_year:
+        flash("⚠️ Active fiscal year not found.", "danger")
+        return redirect(url_for('accounting_routes.journal_list'))
+
+    # Validation: Cannot reverse a reversal or reverse twice
+    if original_entry.reversal_of:
+        flash("❌ This journal entry is already a reversal.", "danger")
+        return redirect(url_for('accounting_routes.journal_list'))
+
+    if original_entry.reversed_by:
+        flash("⚠️ This journal entry has already been reversed.", "warning")
+        return redirect(url_for('accounting_routes.journal_list'))
+
+    # Create reversal journal entry
+    reverse_entry = JournalEntry(
+        company_id=company_id,
+        date=datetime.today().date(),
+        reference=f"REV-{original_entry.reference}",
+        narration=f"Reversal of Entry #{original_entry.id}",
+        created_by=user_id,
+        fiscal_year_id=fiscal_year.id
+    )
+    tenant_session.add(reverse_entry)
+    tenant_session.flush()  # Get reverse_entry.id before linking
+
+    # Link the original entry to the reversal
+    original_entry.reversed_entry_id = reverse_entry.id
+
+    # Reverse each journal line
+    for line in original_entry.lines:
+        reversed_line = JournalLine(
+            entry_id=reverse_entry.id,
+            account_id=line.account_id,
+            debit=line.credit,
+            credit=line.debit,
+            narration=f"Reversal: {line.narration}"
+        )
+        tenant_session.add(reversed_line)
+
+    tenant_session.commit()
+    flash(f"✅ Entry #{entry_id} reversed successfully.", "success")
+    return redirect(url_for('accounting_routes.journal_list'))
+
+@accounting_routes.route('/export/journals/pdf', methods=['GET'])
+def export_journals_pdf():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    entries = (
+        tenant_session.query(JournalEntry)
+        .options(joinedload(JournalEntry.lines).joinedload(JournalLine.account))
+        .filter(JournalEntry.company_id == company_id)
+        .order_by(JournalEntry.date.desc())
+        .all()
+    )
+
+    html = render_template_string("""
+    <h2>Journal Entries</h2>
+    <table border="1" cellspacing="0" cellpadding="5">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Reference</th>
+          <th>Narration</th>
+          <th>Account</th>
+          <th>Debit</th>
+          <th>Credit</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in entries %}
+          {% for line in entry.lines %}
+          <tr>
+            <td>{{ entry.date.strftime('%Y-%m-%d') }}</td>
+            <td>{{ entry.reference }}</td>
+            <td>{{ entry.narration }}</td>
+            <td>{{ line.account.account_code }} - {{ line.account.account_name }}</td>
+            <td>{{ line.debit or 0 }}</td>
+            <td>{{ line.credit or 0 }}</td>
+          </tr>
+          {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+    """, entries=entries)
+
+    pdf = BytesIO()
+    pisa_status = pisa.CreatePDF(html, dest=pdf)
+
+    if pisa_status.err:
+        return "PDF generation error", 500
+
+    pdf.seek(0)
+    response = make_response(pdf.read())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = 'attachment; filename=journal_entries.pdf'
+    return response
+
+
+@accounting_routes.route('/trial-balance', methods=['GET'])
+def trial_balance():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    fiscal_years = tenant_session.query(FiscalYear)\
+        .filter_by(company_id=company_id)\
+        .order_by(FiscalYear.start_date.desc())\
+        .all()
+
+    selected_fiscal_year_id = request.args.get('fiscal_year_id', type=int)
+    trial_data = []
+    total_debit = 0.0
+    total_credit = 0.0
+
+    if selected_fiscal_year_id:
+        fiscal_year = tenant_session.query(FiscalYear)\
+            .filter_by(id=selected_fiscal_year_id, company_id=company_id)\
+            .first()
+
+        if not fiscal_year:
+            flash("❌ Invalid fiscal year selected", "danger")
+            return redirect(url_for('accounting_routes.trial_balance'))
+
+        accounts = tenant_session.query(Account)\
+            .filter_by(company_id=company_id)\
+            .options(joinedload(Account.journal_lines).joinedload(JournalLine.entry))\
+            .all()
+
+        for acc in accounts:
+            debit_sum = 0
+            credit_sum = 0
+            for line in acc.journal_lines:
+                if line.entry and line.entry.fiscal_year_id == fiscal_year.id:
+                    debit_sum += line.debit or 0
+                    credit_sum += line.credit or 0
+
+            if debit_sum != 0 or credit_sum != 0:
+                trial_data.append({
+                    "code": acc.account_code,
+                    "name": acc.account_name,
+                    "debit": round(debit_sum, 2),
+                    "credit": round(credit_sum, 2)
+                })
+                total_debit += debit_sum
+                total_credit += credit_sum
+
+    return render_template("accounting/trial_balance.html",
+        fiscal_years=fiscal_years,
+        selected_fiscal_year_id=selected_fiscal_year_id,
+        trial_data=trial_data,
+        total_debit=round(total_debit, 2),
+        total_credit=round(total_credit, 2)
+    )
+
+@accounting_routes.route('/trial-balance/export/excel', methods=['GET'])
+def export_trial_balance_excel():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    fiscal_year_id = request.args.get('fiscal_year_id', type=int)
+
+    fiscal_year = tenant_session.query(FiscalYear).filter_by(id=fiscal_year_id, company_id=company_id).first()
+    if not fiscal_year:
+        flash("❌ Invalid fiscal year", "danger")
+        return redirect(url_for('accounting_routes.trial_balance'))
+
+    accounts = tenant_session.query(Account)\
+        .filter_by(company_id=company_id)\
+        .options(joinedload(Account.journal_lines).joinedload(JournalLine.entry))\
+        .all()
+
+    rows = []
+    total_debit = 0.0
+    total_credit = 0.0
+
+    for acc in accounts:
+        debit = credit = 0.0
+        for line in acc.journal_lines:
+            if line.entry and line.entry.fiscal_year_id == fiscal_year.id:
+                debit += line.debit or 0
+                credit += line.credit or 0
+
+        if debit != 0 or credit != 0:
+            rows.append({
+                "Account Code": acc.account_code,
+                "Account Name": acc.account_name,
+                "Debit": round(debit, 2),
+                "Credit": round(credit, 2)
+            })
+            total_debit += debit
+            total_credit += credit
+
+    # Append total row
+    rows.append({
+        "Account Code": "",
+        "Account Name": "Total",
+        "Debit": round(total_debit, 2),
+        "Credit": round(total_credit, 2)
+    })
+
+    df = pd.DataFrame(rows)
+    output = BytesIO()
+    df.to_excel(output, index=False)
+    output.seek(0)
+
+    response = make_response(output.read())
+    response.headers['Content-Disposition'] = f'attachment; filename=trial_balance_{fiscal_year.name}.xlsx'
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    return response
+
+
+@accounting_routes.route('/export/trial-balance/pdf', methods=['GET'])
+def export_trial_balance_pdf():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    fiscal_year_id = request.args.get("fiscal_year_id", type=int)
+
+    accounts = tenant_session.query(Account)\
+        .filter_by(company_id=company_id, is_active=True)\
+        .options(joinedload(Account.journal_lines).joinedload(JournalLine.entry))\
+        .all()
+
+    trial_data = []
+    total_debit = 0.0
+    total_credit = 0.0
+
+    for acc in accounts:
+        debit = credit = 0.0
+        for line in acc.journal_lines:
+            if line.entry and line.entry.fiscal_year_id == fiscal_year_id:
+                debit += line.debit or 0
+                credit += line.credit or 0
+
+        if debit != 0 or credit != 0:
+            trial_data.append({
+                'code': acc.account_code,
+                'name': acc.account_name,
+                'debit': round(debit, 2),
+                'credit': round(credit, 2)
+            })
+            total_debit += debit
+            total_credit += credit
+
+    html = render_template_string("""
+    <h2 style="text-align:center;">Trial Balance Report</h2>
+    <table border="1" cellspacing="0" cellpadding="5" width="100%">
+      <thead>
+        <tr>
+          <th>Account Code</th>
+          <th>Account Name</th>
+          <th>Debit</th>
+          <th>Credit</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in trial_data %}
+        <tr>
+          <td>{{ row.code }}</td>
+          <td>{{ row.name }}</td>
+          <td style="text-align:right;">{{ "%.2f"|format(row.debit) }}</td>
+          <td style="text-align:right;">{{ "%.2f"|format(row.credit) }}</td>
+        </tr>
+        {% endfor %}
+        <tr style="font-weight:bold; background-color:#eee;">
+          <td></td>
+          <td>Total</td>
+          <td style="text-align:right;">{{ "%.2f"|format(total_debit) }}</td>
+          <td style="text-align:right;">{{ "%.2f"|format(total_credit) }}</td>
+        </tr>
+      </tbody>
+    </table>
+    """, trial_data=trial_data, total_debit=total_debit, total_credit=total_credit)
+
+    pdf = BytesIO()
+    pisa_status = pisa.CreatePDF(html, dest=pdf)
+    if pisa_status.err:
+        return "❌ PDF generation error", 500
+
+    pdf.seek(0)
+    response = make_response(pdf.read())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = 'attachment; filename=trial_balance.pdf'
+    return response
+
+
+
+@accounting_routes.route('/financial-reports')
+def financial_reports():
+    return render_template('accounting/financial_reports.html')
+
+
+@accounting_routes.route('/customers', methods=['GET', 'POST'])
+def customer_list():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    if request.method == 'POST':
+        customer_type = request.form.get('customer_type')
+        title = request.form.get('title')
+        full_name = request.form.get('full_name')
+        business_name = request.form.get('business_name')
+        raw_phone = request.form.get('phone')
+
+        # --- Phone Number Parsing/Validation ---
+        try:
+            phone_obj = phonenumbers.parse(raw_phone, "LK")  # Default region if not present
+            if not phonenumbers.is_valid_number(phone_obj):
+                flash("❌ Invalid phone number format.", "danger")
+                return redirect(url_for('accounting_routes.customer_list'))
+            formatted_phone = phonenumbers.format_number(phone_obj, phonenumbers.PhoneNumberFormat.E164)
+        except NumberParseException:
+            flash("❌ Could not parse phone number.", "danger")
+            return redirect(url_for('accounting_routes.customer_list'))
+
+        # --- Duplicate Phone Check ---
+        existing = tenant_session.query(Customer).filter_by(
+            company_id=session['company_id'],
+            phone_number=formatted_phone
+        ).first()
+        if existing:
+            flash("❌ This phone number is already registered.", "danger")
+            return redirect(url_for('accounting_routes.customer_list'))
+
+        # --- Get or Create Account Receivable Control ---
+        company_id = session['company_id']
+        user_id = session.get('user_id')
+
+        control_account = tenant_session.query(Account).filter(
+            Account.company_id == company_id,
+            Account.account_type.ilike("Receivable"),
+            Account.account_code == "1000",
+            Account.account_name.ilike("Account Receivable Control%")
+        ).first()
+        if not control_account:
+            control_account = Account(
+                company_id=company_id,
+                account_type="Receivable",
+                account_code="1000",
+                account_name="Account Receivable Control",
+                created_by=user_id
+            )
+            tenant_session.add(control_account)
+            tenant_session.flush()  # To get id before commit
+            tenant_session.commit()  # Now control_account.id is set
+
+        if not control_account or not control_account.id:
+            flash("❌ Failed to create or fetch Account Receivable Control account.", "danger")
+            return redirect(url_for('accounting_routes.customer_list'))
+
+        # --- Create the Customer (with AR control account linked) ---
+        new_customer = Customer(
+            company_id=company_id,
+            customer_type=customer_type,
+            title=title if customer_type == 'Customer' else None,
+            full_name=full_name if customer_type == 'Customer' else None,
+            business_name=business_name if customer_type in ['Agent', 'Corporate'] else None,
+            phone_number=formatted_phone,
+            account_receivable_id=control_account.id,
+            created_by=user_id
+        )
+
+        tenant_session.add(new_customer)
+        tenant_session.commit()
+        flash("✅ Customer created and linked to Account Receivable Control", "success")
+        return redirect(url_for('accounting_routes.customer_list'))
+
+    customers = tenant_session.query(Customer).order_by(Customer.created_at.desc()).all()
+    return render_template('accounting/customer_list.html', customers=customers)
+
+
+
+
+
+@accounting_routes.route('/customers/view/<int:customer_id>')
+def view_customer(customer_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    customer = tenant_session.query(Customer).filter_by(id=customer_id).first()
+    if not customer:
+        flash("❌ Customer not found", "danger")
+        return redirect(url_for('accounting_routes.customer_list'))
+
+    # ✅ Calculate balance using Account Receivable Control + Partner ID
+    from sqlalchemy import func
+
+    balance = tenant_session.query(
+        func.sum(JournalLine.debit - JournalLine.credit)
+    ).filter(
+        JournalLine.account_id == customer.account_receivable_id,
+        JournalLine.partner_id == customer.id
+    ).scalar() or 0.0
+
+    return render_template(
+        'accounting/customer_view.html',
+        customer=customer,
+        balance=balance,
+        current_date=date.today().isoformat()
+    )
+
+@accounting_routes.route('/customers/edit/<int:customer_id>', methods=['GET', 'POST'])
+def edit_customer(customer_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    customer = tenant_session.query(Customer).filter_by(id=customer_id).first()
+    if not customer:
+        flash("❌ Customer not found", "danger")
+        return redirect(url_for('accounting_routes.customer_list'))
+
+    if request.method == 'POST':
+        customer_type = request.form.get('customer_type')
+        customer.customer_type = customer_type
+        customer.title = request.form.get('title') if customer_type == 'Customer' else None
+        customer.full_name = request.form.get('full_name') if customer_type == 'Customer' else None
+        customer.business_name = request.form.get('business_name') if customer_type in ['Agent', 'Corporate'] else None
+        customer.phone_number = request.form.get('phone')
+
+        tenant_session.commit()
+        flash("✅ Customer updated successfully", "success")
+        return redirect(url_for('accounting_routes.customer_list'))
+
+    return render_template('accounting/customer_edit.html', customer=customer)
+
+
+def create_default_accounts(tenant_session, company_id, created_by):
+    default_accounts = [
+        {"account_type": "Equity", "account_code": "9999", "account_name": "Opening Balance Suspense"},
+        {"account_type": "Payable", "account_code": "2000", "account_name": "Account Payable Control"},
+        {"account_type": "Receivable", "account_code": "1000", "account_name": "Account Receivable Control "},
+        {"account_type": "Bank, Cash & Wallets", "account_code": "1100", "account_name": "Bank, Cash & Wallets Control"},
+        {"account_type": "Revenue", "account_code": "4000", "account_name": "Sales"},
+        {"account_type": "Expense", "account_code": "5000", "account_name": "Purchase"},
+    ]
+
+    for acc in default_accounts:
+        exists = tenant_session.query(Account).filter_by(
+            company_id=company_id,
+            account_code=acc["account_code"]
+        ).first()
+
+        if not exists:
+            new_acc = Account(
+                company_id=company_id,
+                account_type=acc["account_type"],
+                account_code=acc["account_code"],
+                account_name=acc["account_name"],
+                created_by=created_by
+            )
+            tenant_session.add(new_acc)
+    tenant_session.commit()
+
+@accounting_routes.route('/setup-default-accounts', methods=['POST'])
+def setup_default_accounts():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+
+    try:
+        create_default_accounts(
+            tenant_session=tenant_session,
+            company_id=session['company_id'],
+            created_by=session['user_id']
+        )
+        flash("✅ Default accounts created successfully.", "success")
+    except Exception as e:
+        tenant_session.rollback()
+        flash(f"❌ Failed to create default accounts: {str(e)}", "danger")
+
+    return redirect(url_for('register_routes.profile_settings'))
+
+@accounting_routes.route('/customers/<int:customer_id>/add-opening-balance', methods=['POST'])
+def add_opening_balance(customer_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+    
+    tenant_session = current_tenant_session()
+    company_id = session.get("company_id")
+    user_id = session.get("user_id")
+    today = date.today()
+
+    amount = float(request.form.get("opening_balance", 0))
+    if amount <= 0:
+        flash("❌ Amount must be greater than zero", "danger")
+        return redirect(url_for("accounting_routes.view_customer", customer_id=customer_id))
+
+    customer = tenant_session.query(Customer).filter_by(id=customer_id).first()
+
+    # Re-fetch the Receivable Control account just in case it's not assigned
+    if not customer.account_receivable_id:
+        control_account = tenant_session.query(Account).filter_by(
+            company_id=company_id,
+            account_type="Receivable",
+            account_code="1000",
+            account_name="Account Receivable Control"
+        ).first()
+        if control_account:
+            customer.account_receivable_id = control_account.id
+            tenant_session.commit()
+
+    # Final check
+    if not customer or not customer.account_receivable_id:
+        flash("❌ Customer or receivable account missing (still NULL)", "danger")
+        return redirect(url_for("accounting_routes.view_customer", customer_id=customer_id))
+
+    # Get the Opening Balance Suspense Account
+    suspense_account = tenant_session.query(Account).filter_by(
+        company_id=company_id,
+        account_type="Equity",
+        account_code="9999",
+        account_name="Opening Balance Suspense"
+    ).first()
+
+    if not suspense_account:
+        flash("❌ Opening Balance Suspense account not found", "danger")
+        return redirect(url_for("accounting_routes.view_customer", customer_id=customer_id))
+
+    # Get active fiscal year
+    fiscal_year = tenant_session.query(FiscalYear).filter_by(
+        company_id=company_id, is_closed=True
+    ).first()
+
+    if not fiscal_year:
+        flash("❌ Active fiscal year not found", "danger")
+        return redirect(url_for("accounting_routes.view_customer", customer_id=customer_id))
+
+    # Create Journal Entry
+    journal = JournalEntry(
+        company_id=company_id,
+        date=today,
+        reference=f"Opening Balance - {customer.full_name or customer.business_name}",
+        narration=f"Opening balance for customer ID {customer.id}",
+        fiscal_year_id=fiscal_year.id,
+        created_by=user_id,
+        created_at=datetime.utcnow()
+    )
+    tenant_session.add(journal)
+    tenant_session.flush()  # To get journal.id
+
+    # Create double entry lines
+    tenant_session.add_all([
+        JournalLine(
+            entry_id=journal.id,
+            account_id=customer.account_receivable_id,
+            debit=amount,
+            credit=0,
+            narration="Opening balance (Debit)",
+            partner_id=customer.id  # ✅ Link to customer as partner
+        ),
+        JournalLine(
+            entry_id=journal.id,
+            account_id=suspense_account.id,
+            debit=0,
+            credit=amount,
+            narration="Opening balance (Credit)"
+        )
+    ])
+
+    tenant_session.commit()
+    flash("✅ Opening balance recorded successfully", "success")
+    return redirect(url_for("accounting_routes.view_customer", customer_id=customer_id))
+
+
+
+
+
+@accounting_routes.route('/customers/<int:customer_id>/toggle-status')
+def toggle_customer_status(customer_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    customer = tenant_session.query(Customer).filter_by(id=customer_id).first()
+
+    if not customer:
+        flash("❌ Customer not found.", "danger")
+        return redirect(url_for('accounting_routes.customer_list'))
+
+    customer.is_active = not customer.is_active
+    tenant_session.commit()
+
+    flash(f"✅ Customer {'enabled' if customer.is_active else 'disabled'} successfully.", "success")
+    return redirect(url_for('accounting_routes.view_customer', customer_id=customer_id))
+
+@accounting_routes.route('/suppliers', methods=['GET', 'POST'])
+def supplier_list():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session.get('user_id')
+
+    if request.method == 'POST':
+        supplier_type = request.form.get('supplier_type')
+        business_name = request.form.get('business_name')
+        raw_phone = request.form.get('phone')
+        email = request.form.get('email') or None
+        is_reconcilable = bool(request.form.get('is_reconcilable'))
+
+        # ✅ Phone validation
+        try:
+            phone_obj = parse(raw_phone, "LK")
+            if not is_valid_number(phone_obj):
+                flash("❌ Invalid phone number.", "danger")
+                return redirect(url_for('accounting_routes.supplier_list'))
+            formatted_phone = format_number(phone_obj, PhoneNumberFormat.E164)
+        except NumberParseException:
+            flash("❌ Could not parse phone number.", "danger")
+            return redirect(url_for('accounting_routes.supplier_list'))
+
+        # ✅ Duplicate check
+        existing = tenant_session.query(Supplier).filter_by(
+            company_id=company_id,
+            phone_number=formatted_phone
+        ).first()
+        if existing:
+            flash("❌ This phone number is already registered.", "danger")
+            return redirect(url_for('accounting_routes.supplier_list'))
+
+        # ✅ Get or create payable account
+        payable_account = tenant_session.query(Account).filter_by(
+            company_id=company_id,
+            account_type='Payable',
+            account_code='2000',
+            account_name='Account Payable Control'
+        ).first()
+
+        if not payable_account:
+            payable_account = Account(
+                company_id=company_id,
+                account_type='Payable',
+                account_code='2000',
+                account_name='Account Payable Control',
+                created_by=user_id
+            )
+            tenant_session.add(payable_account)
+            tenant_session.flush()
+
+        # ✅ Create supplier
+        new_supplier = Supplier(
+            company_id=company_id,
+            supplier_type=supplier_type,
+            business_name=business_name,
+            phone_number=formatted_phone,
+            email=email,
+            is_reconcilable=is_reconcilable,
+            is_active=True,  # ✅ Always default active
+            account_payable_id=payable_account.id,
+            created_by=user_id
+        )
+        tenant_session.add(new_supplier)
+        tenant_session.flush()
+
+        # ✅ Set supplier_code like SUP0001
+        new_supplier.supplier_code = f"SUP{str(new_supplier.id).zfill(4)}"
+        tenant_session.commit()
+
+        flash("✅ Supplier created successfully.", "success")
+        return redirect(url_for('accounting_routes.supplier_list'))
+
+    # GET request
+    suppliers = tenant_session.query(Supplier).order_by(Supplier.created_at.desc()).all()
+    return render_template('accounting/supplier_list.html', suppliers=suppliers)
+
+
+
+@accounting_routes.route('/suppliers/edit/<int:supplier_id>', methods=['GET', 'POST'])
+def edit_supplier(supplier_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    supplier = tenant_session.query(Supplier).filter_by(id=supplier_id).first()
+    if not supplier:
+        flash("❌ Supplier not found", "danger")
+        return redirect(url_for('accounting_routes.supplier_list'))
+
+    if request.method == 'POST':
+        supplier.supplier_type = request.form.get('supplier_type')
+        supplier.business_name = request.form.get('business_name')
+        supplier.email = request.form.get('email') or None
+        supplier.is_reconcilable = bool(request.form.get('is_reconcilable'))
+
+        try:
+            raw_phone = request.form.get('phone')
+            phone_obj = parse(raw_phone, "LK")
+            if not is_valid_number(phone_obj):
+                flash("❌ Invalid phone number.", "danger")
+                return redirect(url_for('accounting_routes.edit_supplier', supplier_id=supplier.id))
+            supplier.phone_number = format_number(phone_obj, PhoneNumberFormat.E164)
+        except NumberParseException:
+            flash("❌ Could not parse phone number.", "danger")
+            return redirect(url_for('accounting_routes.edit_supplier', supplier_id=supplier.id))
+
+        tenant_session.commit()
+        flash("✅ Supplier updated successfully.", "success")
+        return redirect(url_for('accounting_routes.supplier_list'))
+
+    return render_template('accounting/supplier_edit.html', supplier=supplier)
+
+@accounting_routes.route('/suppliers/view/<int:supplier_id>', methods=['GET'])
+def view_supplier(supplier_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    supplier = tenant_session.query(Supplier).filter_by(id=supplier_id).first()
+    if not supplier:
+        flash("❌ Supplier not found", "danger")
+        return redirect(url_for('accounting_routes.supplier_list'))
+
+    
+    # Get current balance
+    balance = tenant_session.query(
+        func.sum(JournalLine.debit - JournalLine.credit)
+    ).filter(
+        JournalLine.account_id == supplier.account_payable_id,
+        JournalLine.partner_id == supplier.id
+    ).scalar() or 0.0
+
+    current_date = datetime.now().date().isoformat()
+    return render_template(
+        'accounting/supplier_view.html',
+        supplier=supplier,
+        balance=balance,
+        current_date=current_date
+    )
+
+
+@accounting_routes.route('/suppliers/toggle_status/<int:supplier_id>')
+def toggle_supplier_status(supplier_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    supplier = tenant_session.query(Supplier).filter_by(id=supplier_id).first()
+    if not supplier:
+        flash("❌ Supplier not found", "danger")
+        return redirect(url_for('accounting_routes.supplier_list'))
+
+    supplier.is_active = not supplier.is_active
+    tenant_session.commit()
+    flash(f"{'✅ Supplier enabled' if supplier.is_active else '⚠️ Supplier disabled'}", "info")
+    return redirect(url_for('accounting_routes.view_supplier', supplier_id=supplier_id))
+
+
+@accounting_routes.route('/suppliers/opening_balance/<int:supplier_id>', methods=['POST'])
+def add_supplier_opening_balance(supplier_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session.get('user_id')
+
+    supplier = tenant_session.query(Supplier).filter_by(id=supplier_id).first()
+    if not supplier:
+        flash("❌ Supplier not found", "danger")
+        return redirect(url_for('accounting_routes.supplier_list'))
+
+    try:
+        amount = Decimal(request.form.get('opening_balance'))
+        date_str = request.form.get('date')
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except Exception:
+        flash("❌ Invalid amount or date", "danger")
+        return redirect(url_for('accounting_routes.view_supplier', supplier_id=supplier_id))
+
+    # ✅ Check for active fiscal year (is_closed should be False)
+    fiscal_year = tenant_session.query(FiscalYear).filter_by(
+        company_id=company_id, is_closed=True
+    ).first()
+
+    if not fiscal_year:
+        flash("❌ Active fiscal year not found", "danger")
+        return redirect(url_for('accounting_routes.view_supplier', supplier_id=supplier_id))
+
+    # ✅ Get Opening Balance Suspense account
+    suspense_account = tenant_session.query(Account).filter_by(
+        company_id=company_id,
+        account_code="9999",
+        account_name="Opening Balance Suspense"
+    ).first()
+
+    if not suspense_account:
+        flash("❌ Opening Balance Suspense account not found", "danger")
+        return redirect(url_for('accounting_routes.view_supplier', supplier_id=supplier_id))
+
+    try:
+        # ✅ Create journal entry
+        journal_entry = JournalEntry(
+            company_id=company_id,
+            date=date_obj,
+            reference=f"Opening Balance - {supplier.business_name}",
+            narration=f"Opening balance for supplier ID {supplier.id}",
+            fiscal_year_id=fiscal_year.id,
+            created_by=user_id,
+            created_at=datetime.utcnow()
+        )
+        tenant_session.add(journal_entry)
+        tenant_session.flush()
+
+        # ✅ Create journal lines (DO NOT use 'created_by')
+        tenant_session.add_all([
+            JournalLine(
+                entry_id=journal_entry.id,
+                account_id=supplier.account_payable_id,
+                debit=Decimal(0),
+                credit=amount,
+                partner_id=supplier.id,
+                narration="Opening balance (Credit)"
+            ),
+            JournalLine(
+                entry_id=journal_entry.id,
+                account_id=suspense_account.id,
+                debit=amount,
+                credit=Decimal(0),
+                narration="Opening balance (Debit)"
+            )
+        ])
+
+        tenant_session.commit()
+        flash("✅ Opening balance posted successfully.", "success")
+    except SQLAlchemyError as e:
+        tenant_session.rollback()
+        flash(f"❌ Failed to post opening balance: {str(e)}", "danger")
+
+    return redirect(url_for('accounting_routes.view_supplier', supplier_id=supplier_id))
+
+@accounting_routes.route('/cashbank', methods=['GET', 'POST'])
+def cash_bank_list():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session.get('user_id')
+
+    if request.method == 'POST':
+        cb_type = request.form.get('type')
+
+        # Get or create Bank/Cash/Wallet Control Account
+        control_account = tenant_session.query(Account).filter_by(
+            company_id=company_id,
+            account_type="Bank, Cash & Wallets",
+            account_code="1100",
+            account_name="Bank, Cash & Wallets Control"
+        ).first()
+
+        if not control_account:
+            flash("❌ Bank, Cash & Wallets Control account missing.", "danger")
+            return redirect(url_for('accounting_routes.cash_bank_list'))
+
+        if cb_type == 'Cash':
+            cb = CashBank(
+                company_id=company_id,
+                type='Cash',
+                account_name=request.form.get('account_name'),
+                account_cashandbank_id=control_account.id,
+                created_by=user_id
+            )
+        elif cb_type == 'Bank':
+            cb = CashBank(
+                company_id=company_id,
+                type='Bank',
+                bank_name=request.form.get('bank_name'),
+                account_name=request.form.get('account_name'),
+                account_number=request.form.get('account_number'),
+                account_cashandbank_id=control_account.id,
+                created_by=user_id
+            )
+        elif cb_type == 'Wallet':
+            supplier_id = request.form.get('supplier_id')
+            if not supplier_id:
+                flash("❌ Wallet must be assigned to a supplier.", "danger")
+                return redirect(url_for('accounting_routes.cash_bank_list'))
+
+            cb = CashBank(
+                company_id=company_id,
+                type='Wallet',
+                wallet_name=request.form.get('wallet_name'),
+                supplier_id=supplier_id,
+                account_cashandbank_id=control_account.id,
+                created_by=user_id
+            )
+        else:
+            flash("❌ Invalid type.", "danger")
+            return redirect(url_for('accounting_routes.cash_bank_list'))
+
+        tenant_session.add(cb)
+        tenant_session.commit()
+        flash("✅ Entry added successfully", "success")
+        return redirect(url_for('accounting_routes.cash_bank_list'))
+
+    suppliers = tenant_session.query(Supplier).filter_by(is_active=True).all()
+    records = tenant_session.query(CashBank).order_by(CashBank.created_at.desc()).all()
+    return render_template('accounting/cash_bank_list.html', records=records, suppliers=suppliers)
+
+
+@accounting_routes.route('/cashbank/view/<int:cb_id>')
+def view_cashbank(cb_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    cb = tenant_session.query(CashBank).filter_by(id=cb_id).first()
+    if not cb:
+        flash("❌ Entry not found", "danger")
+        return redirect(url_for('accounting_routes.cash_bank_list'))
+
+    from sqlalchemy import func
+    balance = tenant_session.query(
+        func.sum(JournalLine.debit - JournalLine.credit)
+    ).filter(
+        JournalLine.account_id == cb.account_cashandbank_id,
+        JournalLine.partner_id == cb.id
+    ).scalar() or 0.0
+
+    return render_template('accounting/cash_bank_view.html', cb=cb, balance=balance, current_date=date.today().isoformat())
+
+
+@accounting_routes.route('/cashbank/edit/<int:cb_id>', methods=['GET', 'POST'])
+def edit_cashbank(cb_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    cb = tenant_session.query(CashBank).filter_by(id=cb_id).first()
+    if not cb:
+        flash("❌ Entry not found", "danger")
+        return redirect(url_for('accounting_routes.cash_bank_list'))
+
+    if request.method == 'POST':
+        cb.type = request.form.get('type')
+        cb.account_name = request.form.get('account_name')
+        cb.bank_name = request.form.get('bank_name')
+        cb.account_number = request.form.get('account_number')
+        cb.wallet_name = request.form.get('wallet_name')
+        cb.supplier_id = request.form.get('supplier_id')
+        tenant_session.commit()
+        flash("✅ Updated successfully", "success")
+        return redirect(url_for('accounting_routes.cash_bank_list'))
+
+    suppliers = tenant_session.query(Supplier).filter_by(is_active=True).all()
+    return render_template('accounting/cash_bank_edit.html', cb=cb, suppliers=suppliers)
+
+
+@accounting_routes.route('/cashbank/<int:cb_id>/add-opening-balance', methods=['POST'])
+def add_cashbank_opening_balance(cb_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    cb = tenant_session.query(CashBank).filter_by(id=cb_id).first()
+    company_id = session['company_id']
+    user_id = session.get('user_id')
+    today = date.today()
+
+    amount = float(request.form.get("opening_balance", 0))
+    if amount == 0:
+        flash("❌ Amount must be greater than zero", "danger")
+        return redirect(url_for("accounting_routes.view_cashbank", cb_id=cb_id))
+
+    suspense_account = tenant_session.query(Account).filter_by(
+        company_id=company_id,
+        account_type="Equity",
+        account_code="9999",
+        account_name="Opening Balance Suspense"
+    ).first()
+
+    fiscal_year = tenant_session.query(FiscalYear).filter_by(
+        company_id=company_id, is_closed=True
+    ).first()
+
+    journal = JournalEntry(
+        company_id=company_id,
+        date=today,
+        reference=f"Opening Balance - {cb.account_name or cb.bank_name or cb.wallet_name}",
+        narration=f"Opening balance for CashBank ID {cb.id}",
+        fiscal_year_id=fiscal_year.id,
+        created_by=user_id,
+        created_at=datetime.utcnow()
+    )
+    tenant_session.add(journal)
+    tenant_session.flush()
+
+    tenant_session.add_all([
+        JournalLine(
+            entry_id=journal.id,
+            account_id=cb.account_cashandbank_id,
+            debit=amount,
+            credit=0,
+            narration="Opening balance (Debit)",
+            partner_id=cb.id
+        ),
+        JournalLine(
+            entry_id=journal.id,
+            account_id=suspense_account.id,
+            debit=0,
+            credit=amount,
+            narration="Opening balance (Credit)"
+        )
+    ])
+    tenant_session.commit()
+    flash("✅ Opening balance recorded successfully", "success")
+    return redirect(url_for("accounting_routes.view_cashbank", cb_id=cb_id))
+
+# ---Invoice  routes  ---
+
+def generate_invoice_number(company_id):
+    today_str = datetime.utcnow().strftime('%Y%m%d')
+    random_part = str(uuid.uuid4())[:6].upper()
+    return f"INV-{company_id}-{today_str}-{random_part}"
+
+@accounting_routes.route('/invoices', methods=['GET', 'POST'])
+def invoice_list():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session.get('user_id')
+
+    if request.method == 'POST':
+        customer_id = request.form.get('customer_id')
+        service_type = request.form.get('service_type')
+        invoice_date = request.form.get('invoice_date')
+        currency = request.form.get('currency') or 'LKR'
+        notes = request.form.get('notes')
+
+        invoice_number = generate_invoice_number(company_id)
+        invoice = Invoice(
+            company_id=company_id,
+            invoice_number=invoice_number,
+            invoice_date=datetime.strptime(invoice_date, '%Y-%m-%d').date(),
+            customer_id=customer_id,
+            service_type=service_type,
+            currency=currency,
+            total_amount=0.00,  # updated after adding lines
+            notes=notes,
+            created_by=user_id
+        )
+        tenant_session.add(invoice)
+        tenant_session.commit()
+        flash("✅ Invoice created. You can now add line items.", "success")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
+    customers = tenant_session.query(Customer).filter_by(is_active=True).all()
+    invoices = tenant_session.query(Invoice).order_by(Invoice.created_at.desc()).all()
+    return render_template('accounting/invoice_list.html', invoices=invoices, customers=customers, current_date=date.today().isoformat())
+
+
+@accounting_routes.route('/invoices/edit/<int:invoice_id>', methods=['GET'])
+def edit_invoice(invoice_id):
+    if 'domain' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+
+    # Fetch the invoice
+    invoice = tenant_session.query(Invoice).filter_by(id=invoice_id).first()
+    if not invoice:
+        flash("❌ Invoice not found.", "danger")
+        return redirect(url_for('accounting_routes.invoice_list'))
+
+    # Fetch all active suppliers (you can later filter based on invoice.service_type if needed)
+    suppliers = tenant_session.query(Supplier).filter_by(is_active=True).order_by(Supplier.business_name).all()
+
+    return render_template(
+        'accounting/invoice_edit.html',
+        invoice=invoice,
+        suppliers=suppliers
+    )
+
+
+
+@accounting_routes.route('/invoices/<int:invoice_id>/add-line', methods=['POST'])
+def add_invoice_line(invoice_id):
+    if 'domain' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    invoice = tenant_session.query(Invoice).filter_by(id=invoice_id).first()
+
+    if not invoice:
+        flash("❌ Invoice not found", "danger")
+        return redirect(url_for('accounting_routes.invoice_list'))
+
+    try:
+        line_type = request.form.get('type')  # Air Ticket / Other
+        sub_type = request.form.get('sub_type')  # IATA / Budget / Hotel / Visa, etc.
+
+        pax_id = request.form.get('pax_id') or None
+        base_fare = Decimal(request.form.get('base_fare') or 0)
+        tax = Decimal(request.form.get('tax') or 0)
+        sell_price = Decimal(request.form.get('sell_price') or 0)
+
+        if line_type == 'Air Ticket':
+            profit = sell_price - (base_fare + tax)
+        elif line_type == 'Other':
+            profit = sell_price - base_fare
+        else:
+            profit = Decimal(0)
+
+        new_line = InvoiceLine(
+            invoice_id=invoice.id,
+            type=line_type,
+            sub_type=sub_type,
+            pax_id=int(pax_id) if pax_id else None,
+            base_fare=base_fare,
+            tax=tax,
+            sell_price=sell_price,
+            profit=profit,
+            pnr=request.form.get('pnr'),
+            designator=request.form.get('designator'),
+            ticket_no=request.form.get('ticket_no'),
+            supplier_id=int(request.form.get('supplier_id')) if request.form.get('supplier_id') else None
+        )
+
+        tenant_session.add(new_line)
+        tenant_session.commit()
+
+        flash("✅ Invoice line added", "success")
+
+    except Exception as e:
+        tenant_session.rollback()
+        flash(f"❌ Error adding line: {str(e)}", "danger")
+
+    return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice_id))
+
+
+
+
+@accounting_routes.route('/invoice-lines/edit/<int:line_id>', methods=['GET', 'POST'])
+def edit_invoice_line(line_id):
+    if 'domain' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+
+    line = tenant_session.query(InvoiceLine).filter_by(id=line_id).first()
+    if not line:
+        flash("❌ Invoice line not found", "danger")
+        return redirect(url_for('accounting_routes.invoice_list'))
+
+    suppliers = tenant_session.query(Supplier).filter_by(is_active=True).order_by(Supplier.business_name).all()
+
+    if request.method == 'POST':
+        line.description = request.form.get('description')
+        line.quantity = int(request.form.get('quantity'))
+        line.unit_price = float(request.form.get('unit_price'))
+        line.cost_price = float(request.form.get('cost_price') or 0)
+        line.total = line.quantity * line.unit_price
+        supplier_id = request.form.get('supplier_id')
+        line.supplier_id = int(supplier_id) if supplier_id else None
+
+        tenant_session.commit()
+        flash("✅ Invoice line updated", "success")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=line.invoice_id))
+
+    recalculate_invoice_totals(line.invoice, tenant_session)
+
+    return render_template(
+        'accounting/invoice_line_edit.html',
+        line=line,
+        suppliers=suppliers
+    )
+
+@accounting_routes.route('/invoice-lines/delete/<int:line_id>')
+def delete_invoice_line(line_id):
+    if 'domain' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+
+    line = tenant_session.query(InvoiceLine).filter_by(id=line_id).first()
+    if not line:
+        flash("❌ Invoice line not found", "danger")
+        return redirect(url_for('accounting_routes.invoice_list'))
+
+    invoice_id = line.invoice_id
+    tenant_session.delete(line)
+    tenant_session.commit()
+
+
+    flash("🗑️ Invoice line deleted", "info")
+    return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice_id))
+
+
+def recalculate_invoice_totals(invoice, session):
+    total = sum(line.total for line in invoice.lines)
+    invoice.total_amount = total
+    session.commit()
+
+
+@accounting_routes.route('/invoices/<int:invoice_id>/add-pax', methods=['POST'])
+def add_pax_detail(invoice_id):
+    if 'domain' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    invoice = tenant_session.query(Invoice).filter_by(id=invoice_id).first()
+
+    if not invoice:
+        flash("❌ Invoice not found", "danger")
+        return redirect(url_for('accounting_routes.invoice_list'))
+
+    try:
+        dob_str = request.form.get('dob')
+        dob = datetime.strptime(dob_str, '%Y-%m-%d').date() if dob_str else None
+
+        pax = PaxDetail(
+            invoice_id=invoice.id,
+            full_name=request.form.get('full_name'),
+            passport_no=request.form.get('passport_no'),
+            nationality=request.form.get('nationality'),
+            dob=dob,
+            ticket_number=request.form.get('ticket_number'),
+            remarks=request.form.get('remarks')
+        )
+
+        tenant_session.add(pax)
+        tenant_session.commit()
+
+        flash("✅ Pax added successfully", "success")
+
+    except Exception as e:
+        tenant_session.rollback()
+        flash(f"❌ Error adding pax: {str(e)}", "danger")
+
+    return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice_id))
+
+@accounting_routes.route('/invoices/<int:invoice_id>/save', methods=['POST'])
+def save_invoice(invoice_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+
+    invoice = tenant_session.query(Invoice).filter_by(id=invoice_id).first()
+    if not invoice:
+        flash("❌ Invoice not found", "danger")
+        return redirect(url_for('accounting_routes.invoice_list'))
+
+    # ✅ Recalculate total from all line items
+    total = sum((line.quantity or 0) * (line.unit_price or 0) for line in invoice.lines)
+    invoice.total_amount = total
+
+    tenant_session.commit()
+
+    flash("✅ Invoice saved successfully", "success")
+    return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice_id))

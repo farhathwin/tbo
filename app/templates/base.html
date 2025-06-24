@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}My Accounting App{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- In your base.html or journal_entry.html -->
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+
+  <style>
+    .sidebar {
+      height: 100%;
+      min-height: 100vh;
+      background-color: #f8f9fa;
+      padding-top: 20px;
+    }
+    .sidebar a {
+      display: block;
+      padding: 10px 20px;
+      color: #333;
+      text-decoration: none;
+    }
+    .sidebar a:hover {
+      background-color: #e9ecef;
+    }
+  </style>
+</head>
+<body class="d-flex flex-column min-vh-100">
+
+  <!-- Header -->
+  <header class="bg-primary text-white py-2">
+    <div class="container-fluid d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Accounting App</h5>
+      {% if session.get('user_id') %}
+        <div>
+          <span class="me-3">
+            User: <strong>{{ session.get('email') or session.get('pending_user_email') or 'N/A' }}</strong>
+          </span>
+          <span class="me-3">Role: <strong>{{ session.get('role') }}</strong></span>
+          <a href="{{ url_for('register_routes.profile_settings') }}">Profile Settings</a>
+          <a href="{{ url_for('register_routes.logout') }}" class="btn btn-sm btn-outline-light">Logout</a>
+          <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addCompanyModal">
+            + Add New Company
+          </button>
+        </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <!-- Modal -->
+  <div class="modal fade" id="addCompanyModal" tabindex="-1" aria-labelledby="addCompanyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <form id="addCompanyForm">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="addCompanyModalLabel">Create New Company</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="domain" class="form-label">New Subdomain</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="domain" name="domain" placeholder="e.g. xyz" required>
+                <span class="input-group-text">.pepmytrip.com</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Create</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<!-- Layout -->
+<div class="container-fluid flex-fill">
+  <div class="row flex-nowrap">
+    <nav class="col-md-2 sidebar">
+      <a href="{{ url_for('register_routes.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('register_routes.user_list') }}">Users</a>
+      <hr>
+      <strong class="ms-3 text-muted">Accounting</strong>
+      <a href="{{ url_for('accounting_routes.manage_fiscal_years') }}">Fiscal Years</a>
+      <a href="{{ url_for('account_type_routes.manage_account_types') }}">Accounts Type</a>
+      <a href="{{ url_for('accounting_routes.chart_of_accounts') }}">Chart of Accounts</a>
+      <a href="{{ url_for('accounting_routes.journal_entry') }}">Journal</a>
+      <a href="{{ url_for('accounting_routes.journal_list') }}">Journal List</a>
+      <a href="{{ url_for('accounting_routes.customer_list') }}">Customer</a>
+      <a href="{{ url_for('accounting_routes.supplier_list') }}">Supplier</a>
+      <a href="{{ url_for('accounting_routes.cash_bank_list') }}">Bank And Cash</a>
+      <a href="{{ url_for('accounting_routes.invoice_list') }}">Invoice</a>
+      <!-- Add more accounting links here as needed -->
+       <strong class="ms-3 text-muted">Reporting</strong>
+      <a href="{{ url_for('accounting_routes.financial_reports') }}">Financial Reports</a>
+    </nav>
+
+    <main class="col-md-10 py-4">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+
+  <!-- Footer -->
+  <footer class="bg-dark text-center text-white py-2 mt-auto">
+    <div>
+      Powered by
+      <a href="https://pepmytrip.com" target="_blank" class="text-white text-decoration-underline">
+        pepmytrip.com
+      </a>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    document.getElementById("addCompanyForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      const subdomain = document.getElementById("domain").value.trim().toLowerCase();
+
+      if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(subdomain)) {
+        alert("Invalid subdomain. Use only letters, numbers, or hyphens.");
+        return;
+      }
+
+      const domain = `${subdomain}.pepmytrip.com`;
+
+      fetch("/create-tenant-domain", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ domain }),
+      })
+      .then((res) => res.json())
+      .then((data) => {
+        alert(data.message);
+        if (data.success) {
+          location.reload();
+        }
+      })
+      .catch((err) => alert("Error: " + err.message));
+    });
+  </script>
+</body>
+</html>

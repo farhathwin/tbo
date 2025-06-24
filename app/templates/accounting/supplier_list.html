@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}Suppliers{% endblock %}
+
+{% block content %}
+<h3>Suppliers</h3>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css" />
+<style>
+  .iti { width: 100%; }
+  .iti__country-list {
+    z-index: 9999 !important;
+    max-height: 250px;
+    overflow-y: auto;
+    background-color: white;
+  }
+  #phone { min-width: 260px; letter-spacing: 1px; }
+</style>
+
+<form method="POST" autocomplete="off">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-2">
+      <label>Type</label>
+      <select name="supplier_type" class="form-select" required>
+        <option value="">-- Select Type --</option>
+        <option>Expenses</option>
+        <option>BSP</option>
+        <option>Airlines</option>
+        <option>Hotels</option>
+        <option>Tour Operators</option>
+        <option>Other</option>
+      </select>
+    </div>
+
+    <div class="col-md-3">
+      <label>Business Name</label>
+      <input type="text" name="business_name" class="form-control" required>
+    </div>
+
+    <div class="col-md-2">
+      <label>Phone</label>
+      <input type="tel" id="phone" name="phone" class="form-control" required>
+    </div>
+
+    <div class="col-md-3">
+      <label>Email (Optional)</label>
+      <input type="email" name="email" class="form-control">
+    </div>
+
+    <div class="col-md-1">
+      <label>Reconcilable</label><br>
+      <input type="checkbox" name="is_reconcilable" class="form-check-input">
+    </div>
+
+    <div class="col-md-1">
+      <button type="submit" class="btn btn-primary w-100">Add</button>
+    </div>
+  </div>
+</form>
+
+<hr>
+
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Supplier ID</th>
+      <th>Type</th>
+      <th>Business Name</th>
+      <th>Phone</th>
+      <th>Email</th>
+      <th>Reconcilable</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for supp in suppliers %}
+    <tr>
+      <td>{{ supp.supplier_code }}</td>
+      <td>{{ supp.supplier_type }}</td>
+      <td>{{ supp.business_name }}</td>
+      <td>{{ supp.phone_number }}</td>
+      <td>{{ supp.email or '-' }}</td>
+      <td>{{ 'Yes' if supp.is_reconcilable else 'No' }}</td>
+      <td>
+        <span class="badge bg-{{ 'success' if supp.is_active else 'secondary' }}">
+          {{ 'Active' if supp.is_active else 'Inactive' }}
+        </span>
+      </td>
+      <td>
+        <a href="{{ url_for('accounting_routes.view_supplier', supplier_id=supp.id) }}" class="btn btn-sm btn-info">View</a>
+        <a href="{{ url_for('accounting_routes.edit_supplier', supplier_id=supp.id) }}" class="btn btn-sm btn-warning">Edit</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/intlTelInput.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/utils.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const phoneInput = document.querySelector("#phone");
+    const iti = window.intlTelInput(phoneInput, {
+      separateDialCode: true,
+      initialCountry: "auto",
+      geoIpLookup: function (success, failure) {
+        fetch('https://ipapi.co/json')
+          .then(res => res.json())
+          .then(data => success(data.country_code))
+          .catch(() => success("US"));
+      },
+      utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/utils.js"
+    });
+
+    const form = phoneInput.closest("form");
+    form.addEventListener("submit", function (e) {
+      if (!iti.isValidNumber()) {
+        e.preventDefault();
+        alert("❌ Please enter a valid phone number.");
+      } else {
+        phoneInput.value = iti.getNumber();
+      }
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Financial Reports{% endblock %}
+
+{% block content %}
+<h3>📊 Financial Reports</h3>
+
+<div class="card mt-3">
+  <div class="card-header">Management Reports</div>
+  <div class="card-body">
+    <a href="{{ url_for('accounting_routes.trial_balance') }}" class="btn btn-outline-primary">📘 Trial Balance</a>
+    <!-- Add more links like Profit & Loss, Balance Sheet here -->
+  </div>
+</div>
+
+{% endblock %}

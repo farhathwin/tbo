@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}Chart of Accounts{% endblock %}
+
+{% block content %}
+<h3>Chart of Accounts</h3>
+
+<form method="POST">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label>Account Type</label>
+      <select name="account_type" class="form-select" required>
+        <option value="">-- Select Type --</option>
+
+        {% macro render_options(nodes, level=0) %}
+          {% for item in nodes %}
+            {% set atype = item.node %}
+            {% set indent = '&nbsp;&nbsp;&nbsp;&nbsp;' * level %}
+            {% if atype.is_header %}
+              <option disabled style="font-weight:bold;">{{ indent | safe }}{{ atype.name }}</option>
+            {% elif item.children %}
+              <option value="{{ atype.name }}" style="font-weight:bold;">{{ indent | safe }}{{ atype.name }}</option>
+            {% else %}
+              <option value="{{ atype.name }}">{{ indent | safe }}{{ atype.name }}</option>
+            {% endif %}
+            {{ render_options(item.children, level + 1) }}
+          {% endfor %}
+        {% endmacro %}
+
+        {{ render_options(account_types_tree) }}
+      </select>
+
+
+    </div>
+    <div class="col-md-2">
+      <label>Account Code</label>
+      <input type="text" name="account_code" class="form-control" required>
+    </div>
+    <div class="col-md-3">
+      <label>Account Name</label>
+      <input type="text" name="account_name" class="form-control" required>
+    </div>
+    <div class="col-md-1">
+      <div class="form-check mt-4">
+        <input class="form-check-input" type="checkbox" name="is_reconcilable">
+        <label class="form-check-label">Recon.</label>
+      </div>
+    </div>
+    <div class="col-md-1">
+      <button type="submit" class="btn btn-primary w-100">Add</button>
+    </div>
+  </div>
+</form>
+
+<hr>
+
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Code</th>
+      <th>Name</th>
+      <th>Recon</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for acc in accounts %}
+      <tr>
+        <td>{{ acc.account_type }}</td>
+        <td>{{ acc.account_code }}</td>
+        <td>{{ acc.account_name }}</td>
+        <td>{{ "Yes" if acc.is_reconcilable else "No" }}</td>
+        <td>
+          <a href="{{ url_for('accounting_routes.view_account', account_id=acc.id) }}" class="btn btn-sm btn-info">View</a>
+          <a href="{{ url_for('accounting_routes.edit_account', account_id=acc.id) }}" class="btn btn-sm btn-warning">Edit</a>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

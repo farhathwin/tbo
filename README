@@ -1,0 +1,34 @@
+
+
+
+
+from app import create_app, db
+from flask_migrate import Migrate, upgrade
+from sqlalchemy import text
+from flask import current_app
+
+# Step 1: Connect to central database (holding tenants list)
+CENTRAL_DB_URI = "sqlite:///app.db"  # Replace with your actual main DB
+
+def get_all_tenants():
+    """Fetch tenants and their DB URIs from central tenant table"""
+    app = create_app(db_uri_override=CENTRAL_DB_URI)
+    with app.app_context():
+        result = db.session.execute(text("SELECT name, db_uri FROM tenants"))
+        return result.fetchall()
+
+def migrate_tenant(tenant_name, db_uri):
+    print(f"🔁 Migrating tenant: {tenant_name}")
+    app = create_app(db_uri_override=db_uri)
+    migrate = Migrate(app, db)
+    with app.app_context():
+        upgrade()
+
+if __name__ == '__main__':
+    tenants = get_all_tenants()
+    for row in tenants:
+        migrate_tenant(row.name, row.db_uri)
+
+    # Optionally run main app
+    app = create_app()
+    app.run(debug=True)

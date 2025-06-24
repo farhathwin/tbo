@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Edit User{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h4>Edit User Role</h4>
+  <form method="POST">
+    <div class="mb-3">
+      <label>Email</label>
+      <input type="email" class="form-control" value="{{ user.email }}" disabled>
+    </div>
+    <div class="mb-3">
+      <label for="role">Role</label>
+      <select class="form-select" name="role" required>
+        <option value="Admin" {{ 'selected' if user.role == 'Admin' else '' }}>Admin</option>
+        <option value="Accountant" {{ 'selected' if user.role == 'Accountant' else '' }}>Accountant</option>
+        <option value="Sales Staff" {{ 'selected' if user.role == 'Sales Staff' else '' }}>Sales Staff</option>
+        <option value="Viewer" {{ 'selected' if user.role == 'Viewer' else '' }}>Viewer</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Update</button>
+    <a href="{{ url_for('register_routes.user_list') }}" class="btn btn-secondary">Cancel</a>
+  </form>
+</div>
+{% endblock %}

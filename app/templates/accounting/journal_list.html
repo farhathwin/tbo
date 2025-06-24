@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block title %}Journal Entries{% endblock %}
+
+{% block content %}
+<h3>Journal Entries</h3>
+
+<!-- Filter Form -->
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-3">
+    <label for="start_date" class="form-label">Start Date</label>
+    <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}" class="form-control">
+  </div>
+  <div class="col-md-3">
+    <label for="end_date" class="form-label">End Date</label>
+    <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}" class="form-control">
+  </div>
+  <div class="col-md-4">
+    <label for="search" class="form-label">Search (Ref/Narration)</label>
+    <input type="text" name="search" value="{{ request.args.get('search', '') }}" class="form-control" placeholder="Search by reference or narration">
+  </div>
+  <div class="col-md-2 d-grid align-items-end">
+    <button type="submit" class="btn btn-primary">🔍 Filter</button>
+  </div>
+</form>
+
+<!-- Export Buttons -->
+<div class="mb-2">
+  <a href="{{ url_for('accounting_routes.export_journals_pdf') }}" class="btn btn-danger btn-sm">📄 Export PDF</a>
+</div>
+
+<!-- Journal Table -->
+<table class="table table-sm table-bordered table-hover small">
+  <thead class="table-light">
+    <tr>
+      <th>Date</th>
+      <th>Reference</th>
+      <th>Narration</th>
+      <th>Account</th>
+      <th>Debit</th>
+      <th>Credit</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for entry in journal_entries %}
+      {% for line in entry.lines %}
+      <tr class="{% if entry.reversed_by %}table-danger{% endif %}">
+        {% if loop.first %}
+        <td rowspan="{{ entry.lines|length }}">{{ entry.date.strftime('%Y-%m-%d') }}</td>
+        <td rowspan="{{ entry.lines|length }}">{{ entry.reference }}</td>
+        <td rowspan="{{ entry.lines|length }}">{{ entry.narration }}</td>
+        {% endif %}
+        <td>{{ line.account.account_code }} - {{ line.account.account_name }}</td>
+        <td>{{ line.debit | default(0) | round(2) }}</td>
+        <td>{{ line.credit | default(0) | round(2) }}</td>
+        {% if loop.first %}
+        <td rowspan="{{ entry.lines|length }}">
+          {% if entry.reversed_by %}
+            <button class="btn btn-secondary btn-sm" disabled title="Already reversed">✓ Reversed</button>
+          {% else %}
+            <form method="POST" action="{{ url_for('accounting_routes.reverse_journal_entry', entry_id=entry.id) }}">
+              <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure to reverse this entry?')">↩ Reverse</button>
+            </form>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr><td colspan="7" class="text-center">No entries found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- Pagination -->
+<nav aria-label="Journal pagination">
+  <ul class="pagination pagination-sm justify-content-end">
+    {% if page > 1 %}
+      <li class="page-item">
+        <a class="page-link" href="{{ url_for('accounting_routes.journal_list', page=page-1, **request.args.to_dict(flat=True)) }}">Previous</a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Previous</span></li>
+    {% endif %}
+
+    <li class="page-item disabled">
+      <span class="page-link">Page {{ page }} of {{ total_pages }}</span>
+    </li>
+
+    {% if page < total_pages %}
+      <li class="page-item">
+        <a class="page-link" href="{{ url_for('accounting_routes.journal_list', page=page+1, **request.args.to_dict(flat=True)) }}">Next</a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Next</span></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endblock %}

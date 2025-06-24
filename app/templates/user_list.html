@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}User Management{% endblock %}
+
+{% block content %}
+<h3>User Management</h3>
+
+<form method="POST" class="mb-4">
+  <div class="row g-3 align-items-center">
+    <div class="col-md-5">
+      <input type="email" name="email" class="form-control" placeholder="User Email" required>
+    </div>
+    <div class="col-md-4">
+      <select name="role" class="form-select" required>
+        <option value="">Select Role</option>
+        <option value="Admin">Admin</option>
+        <option value="Accountant">Accountant</option>
+        <option value="Sales Staff">Sales Staff</option>
+        <option value="Viewer">Viewer</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <button type="submit" class="btn btn-success w-100">Send Invitation</button>
+    </div>
+  </div>
+</form>
+
+<h5>Existing Users</h5>
+<table class="table table-bordered align-middle">
+  <thead class="table-light">
+    <tr>
+      <th>Email</th>
+      <th>Role</th>
+      <th>Last Login</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for user in users %}
+      <tr>
+        <td>{{ user.email }}</td>
+        <td>{{ user.role }}</td>
+        <td>{{ user.last_login.strftime("%Y-%m-%d %H:%M") if user.last_login else 'Never' }}</td>
+        <td>
+          {% if user.is_suspended %}
+            <span class="badge bg-danger">Suspended</span>
+          {% else %}
+            <span class="badge bg-success">Active</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('register_routes.edit_user', user_id=user.id) }}" class="btn btn-sm btn-info">Edit</a>
+          {% if user.is_suspended %}
+            <a href="{{ url_for('register_routes.unsuspend_user', user_id=user.id) }}" class="btn btn-sm btn-success">Activate</a>
+          {% else %}
+            <a href="{{ url_for('register_routes.suspend_user', user_id=user.id) }}" class="btn btn-sm btn-warning">Suspend</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+
+    {% for invite in invites if not invite.is_used %}
+      <tr>
+        <td>{{ invite.email }}</td>
+        <td>{{ invite.role }}</td>
+        <td>—</td>
+        <td><span class="badge bg-secondary">Pending Invite</span></td>
+        <td><small>Sent</small></td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

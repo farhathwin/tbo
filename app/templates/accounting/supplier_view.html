@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Supplier View{% endblock %}
+
+{% block content %}
+<h3>Supplier Details</h3>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <p><strong>Supplier ID:</strong> {{ supplier.supplier_code }}</p>
+    <p><strong>Type:</strong> {{ supplier.supplier_type }}</p>
+    <p><strong>Business Name:</strong> {{ supplier.business_name }}</p>
+    <p><strong>Phone:</strong> {{ supplier.phone_number }}</p>
+    <p><strong>Email:</strong> {{ supplier.email or '-' }}</p>
+    <p><strong>Reconcilable:</strong> {{ 'Yes' if supplier.is_reconcilable else 'No' }}</p>
+    <p><strong>Status:</strong> 
+      {% if supplier.is_active %}
+        <span class="badge bg-success">Active</span>
+      {% else %}
+        <span class="badge bg-secondary">Inactive</span>
+      {% endif %}
+    </p>
+    <p><strong>Current Balance:</strong> {{ "{:,.2f}".format(balance or 0) }}</p>
+
+    <a href="{{ url_for('accounting_routes.toggle_supplier_status', supplier_id=supplier.id) }}"
+       class="btn btn-sm {{ 'btn-danger' if supplier.is_active else 'btn-success' }}">
+      {{ 'Disable' if supplier.is_active else 'Enable' }}
+    </a>
+  </div>
+</div>
+
+<!-- Opening Balance Form -->
+<h5>Opening Balance</h5>
+<form method="POST" action="{{ url_for('accounting_routes.add_supplier_opening_balance', supplier_id=supplier.id) }}">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label>Opening Balance Amount</label>
+      <input type="number" step="0.01" name="opening_balance" class="form-control" required>
+    </div>
+    <div class="col-md-2">
+      <label>Date</label>
+      <input type="date" name="date" class="form-control" required value="{{ current_date }}">
+    </div>
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-success">💾 Save Opening Balance</button>
+    </div>
+  </div>
+</form>
+
+<a href="{{ url_for('accounting_routes.supplier_list') }}" class="btn btn-secondary mt-4">⬅ Back to List</a>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}Cash & Bank{% endblock %}
+
+{% block content %}
+<h3>Cash, Bank & Wallet Accounts</h3>
+<form method="POST">
+  <div class="row g-3 align-items-end">
+    <div class="col-md-2">
+      <label>Type</label>
+      <select name="type" class="form-select" required onchange="toggleFields(this.value)">
+        <option value="">-- Select --</option>
+        <option value="Cash">Cash</option>
+        <option value="Bank">Bank</option>
+        <option value="Wallet">Wallet</option>
+      </select>
+    </div>
+
+    <div class="col-md-3" id="accountNameDiv">
+      <label>Account Name</label>
+      <input type="text" name="account_name" class="form-control">
+    </div>
+
+    <div class="col-md-3" id="bankFields" style="display:none;">
+      <label>Bank Name</label>
+      <input type="text" name="bank_name" class="form-control mb-2">
+      <label>Account Number</label>
+      <input type="text" name="account_number" class="form-control">
+    </div>
+
+    <div class="col-md-3" id="walletFields" style="display:none;">
+      <label>Wallet Name</label>
+      <input type="text" name="wallet_name" class="form-control mb-2">
+      <label>Assigned Supplier</label>
+      <select name="supplier_id" class="form-select">
+        <option value="">-- Select Supplier --</option>
+        {% for sup in suppliers %}
+        <option value="{{ sup.id }}">{{ sup.business_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-primary w-100">Add</button>
+    </div>
+  </div>
+</form>
+<hr>
+
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Account/Wallet/Bank Name</th>
+      <th>Supplier (if Wallet)</th>
+      <th>Account No</th>
+      <th>Stetus</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for cb in records %}
+    <tr>
+      <td>{{ cb.type }}</td>
+      <td>{{ cb.account_name or cb.wallet_name or cb.bank_name }}</td>
+      <td>{{ cb.supplier.business_name if cb.supplier else '-' }}</td>
+      <td>{{ cb.account_number or '-' }}</td>
+      <td>
+        <!-- Add edit/view if needed -->
+        <span class="badge bg-success">Active</span>
+      </td>
+      <td>
+        <a href="{{ url_for('accounting_routes.view_cashbank', cb_id=cb.id) }}" class="btn btn-sm btn-info">View</a>
+        <a href="{{ url_for('accounting_routes.edit_cashbank', cb_id=cb.id) }}" class="btn btn-sm btn-warning">Edit</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+function toggleFields(type) {
+  document.getElementById('accountNameDiv').style.display = (type === 'Cash' || type === 'Bank') ? 'block' : 'none';
+  document.getElementById('bankFields').style.display = (type === 'Bank') ? 'block' : 'none';
+  document.getElementById('walletFields').style.display = (type === 'Wallet') ? 'block' : 'none';
+}
+</script>
+{% endblock %}

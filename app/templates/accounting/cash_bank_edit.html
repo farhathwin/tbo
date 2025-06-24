@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Edit Account{% endblock %}
+{% block content %}
+<h3>Edit Cash, Bank or Wallet</h3>
+<form method="POST">
+  <div class="row g-3">
+    <div class="col-md-3">
+      <label>Type</label>
+      <select name="type" class="form-select" required onchange="toggleFields(this.value)">
+        <option value="Cash" {% if cb.type == 'Cash' %}selected{% endif %}>Cash</option>
+        <option value="Bank" {% if cb.type == 'Bank' %}selected{% endif %}>Bank</option>
+        <option value="Wallet" {% if cb.type == 'Wallet' %}selected{% endif %}>Wallet</option>
+      </select>
+    </div>
+
+    <div class="col-md-4" id="accountNameDiv">
+      <label>Account Name</label>
+      <input type="text" name="account_name" class="form-control" value="{{ cb.account_name or '' }}">
+    </div>
+
+    <div class="col-md-4" id="bankFields" style="display:none;">
+      <label>Bank Name</label>
+      <input type="text" name="bank_name" class="form-control mb-2" value="{{ cb.bank_name or '' }}">
+      <label>Account Number</label>
+      <input type="text" name="account_number" class="form-control" value="{{ cb.account_number or '' }}">
+    </div>
+
+    <div class="col-md-4" id="walletFields" style="display:none;">
+      <label>Wallet Name</label>
+      <input type="text" name="wallet_name" class="form-control mb-2" value="{{ cb.wallet_name or '' }}">
+      <label>Assigned Supplier</label>
+      <select name="supplier_id" class="form-select">
+        <option value="">-- Select Supplier --</option>
+        {% for sup in suppliers %}
+        <option value="{{ sup.id }}" {% if cb.supplier_id == sup.id %}selected{% endif %}>{{ sup.business_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-primary">💾 Save</button>
+    </div>
+  </div>
+</form>
+<a href="{{ url_for('accounting_routes.cash_bank_list') }}" class="btn btn-secondary mt-3">⬅ Back to List</a>
+
+<script>
+function toggleFields(type) {
+  document.getElementById('accountNameDiv').style.display = (type === 'Cash' || type === 'Bank') ? 'block' : 'none';
+  document.getElementById('bankFields').style.display = (type === 'Bank') ? 'block' : 'none';
+  document.getElementById('walletFields').style.display = (type === 'Wallet') ? 'block' : 'none';
+}
+toggleFields("{{ cb.type }}")
+</script>
+{% endblock %}

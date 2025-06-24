@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Welcome{% endblock %}
+
+{% block content %}
+<div class="container text-center mt-5">
+  <h2 class="mb-3">🎉 Welcome to Pepmytrip Accounting!</h2>
+  <p>Your company has been successfully registered.</p>
+  <a href="{{ url_for('register_routes.login') }}" class="btn btn-primary mt-3">Proceed to Login</a>
+</div>
+{% endblock %}
+

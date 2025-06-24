@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Fiscal Years{% endblock %}
+
+{% block content %}
+<h3>Fiscal Years</h3>
+
+<!-- Add Fiscal Year Form -->
+<form method="POST" class="mb-4">
+  <input type="hidden" name="action" value="add">
+  <div class="row g-2">
+    <div class="col-md-3">
+      <input type="text" name="name" class="form-control" placeholder="e.g. 2024-2025" required>
+    </div>
+    <div class="col-md-3">
+      <input type="date" name="start_date" class="form-control" required>
+    </div>
+    <div class="col-md-3">
+      <input type="date" name="end_date" class="form-control" required>
+    </div>
+    <div class="col-md-3">
+      <button type="submit" class="btn btn-primary w-100">➕ Add Fiscal Year</button>
+    </div>
+  </div>
+</form>
+
+<!-- Fiscal Year Activation Table -->
+<form method="POST">
+  <table class="table table-bordered table-sm">
+    <thead class="table-light">
+      <tr>
+        <th style="width: 60px;">Active</th>
+        <th>Name</th>
+        <th>Start</th>
+        <th>End</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for fy in fiscal_years %}
+      <tr>
+        <td class="text-center">
+          <input type="radio" name="active_fiscal_id" value="{{ fy.id }}" {% if fy.is_closed %}checked{% endif %}>
+        </td>
+        <td>{{ fy.name }}</td>
+        <td>{{ fy.start_date.strftime('%Y-%m-%d') }}</td>
+        <td>{{ fy.end_date.strftime('%Y-%m-%d') }}</td>
+        <td>
+          {% if fy.is_closed %}
+            <span class="badge bg-success">Active</span>
+          {% else %}
+            <span class="badge bg-secondary">Inactive</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="text-end">
+    <button type="submit" name="set_active" class="btn btn-success">✅ Set Selected Fiscal Year as Active</button>
+  </div>
+</form>
+{% endblock %}

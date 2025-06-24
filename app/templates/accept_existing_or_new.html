@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Accept Invitation{% endblock %}
+{% block content %}
+  <h3>Accept Invitation</h3>
+  <form method="POST">
+    <p>You've been invited as <strong>{{ email }}</strong>.</p>
+
+    {% if existing %}
+      <div class="alert alert-info">You're already registered. Please enter your password to accept access.</div>
+    {% else %}
+      <div class="alert alert-info">You're new here. Please set your password to complete the signup.</div>
+    {% endif %}
+
+    <div class="mb-3">
+      <label for="password" class="form-label">Password</label>
+      <input type="password" name="password" id="password" class="form-control" required>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Accept Invitation</button>
+  </form>
+{% endblock %}

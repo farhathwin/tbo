@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}Edit Supplier{% endblock %}
+
+{% block content %}
+<h3>Edit Supplier</h3>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css" />
+<style>
+  .iti { width: 100%; }
+  .iti__country-list {
+    z-index: 9999 !important;
+    max-height: 250px;
+    overflow-y: auto;
+    background-color: white;
+  }
+</style>
+
+<form method="POST" id="editSupplierForm">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-2">
+      <label>Type</label>
+      <select name="supplier_type" class="form-select" required>
+        <option value="">-- Select Type --</option>
+        <option value="Expenses" {% if supplier.supplier_type == 'Expenses' %}selected{% endif %}>Expenses</option>
+        <option value="BSP" {% if supplier.supplier_type == 'BSP' %}selected{% endif %}>BSP</option>
+        <option value="Airlines" {% if supplier.supplier_type == 'Airlines' %}selected{% endif %}>Airlines</option>
+        <option value="Hotels" {% if supplier.supplier_type == 'Hotels' %}selected{% endif %}>Hotels</option>
+        <option value="Tour Operators" {% if supplier.supplier_type == 'Tour Operators' %}selected{% endif %}>Tour Operators</option>
+        <option value="Other" {% if supplier.supplier_type == 'Other' %}selected{% endif %}>Other</option>
+      </select>
+    </div>
+
+    <div class="col-md-3">
+      <label>Business Name</label>
+      <input type="text" name="business_name" class="form-control" required value="{{ supplier.business_name }}">
+    </div>
+
+    <div class="col-md-2" style="position: relative; z-index: 1055;">
+      <label>Phone</label>
+      <input type="tel" id="phone" name="phone" class="form-control" required>
+    </div>
+
+    <div class="col-md-3">
+      <label>Email (Optional)</label>
+      <input type="email" name="email" class="form-control" value="{{ supplier.email or '' }}">
+    </div>
+
+    <div class="col-md-1">
+      <label>Reconcilable</label><br>
+      <input type="checkbox" name="is_reconcilable" class="form-check-input" {% if supplier.is_reconcilable %}checked{% endif %}>
+    </div>
+
+    <div class="col-md-1">
+      <button type="submit" class="btn btn-success w-100">💾 Save</button>
+    </div>
+  </div>
+</form>
+
+<a href="{{ url_for('accounting_routes.supplier_list') }}" class="btn btn-secondary mt-3">⬅ Cancel</a>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/intlTelInput.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/utils.js"></script>
+<script>
+  const phoneInput = document.querySelector("#phone");
+  const iti = window.intlTelInput(phoneInput, {
+    separateDialCode: true,
+    initialCountry: "auto",
+    geoIpLookup: function (success, failure) {
+      fetch('https://ipapi.co/json')
+        .then(res => res.json())
+        .then(data => success(data.country_code))
+        .catch(() => success("US"));
+    },
+    utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/utils.js"
+  });
+
+  // Set initial value
+  iti.setNumber("{{ supplier.phone_number }}");
+
+  document.getElementById('editSupplierForm').addEventListener('submit', function (e) {
+    if (!iti.isValidNumber()) {
+      e.preventDefault();
+      alert("❌ Please enter a valid phone number.");
+      return;
+    }
+    phoneInput.value = iti.getNumber(); // Set to E.164 format before submission
+  });
+</script>
+{% endblock %}

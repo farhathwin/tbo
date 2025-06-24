@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}Profile Settings{% endblock %}
+
+{% block content %}
+<h3>Profile Settings</h3>
+
+{% set show_company = role in ['SuperXuser', 'Admin'] %}
+
+<ul class="nav nav-tabs" id="profileTab" role="tablist">
+  {% if show_company %}
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="company-tab" data-bs-toggle="tab" data-bs-target="#company" type="button" role="tab">Company</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="user-tab" data-bs-toggle="tab" data-bs-target="#user" type="button" role="tab">User</button>
+    </li>
+  {% else %}
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="user-tab" data-bs-toggle="tab" data-bs-target="#user" type="button" role="tab">User</button>
+    </li>
+  {% endif %}
+</ul>
+
+<div class="tab-content mt-3">
+  {% if show_company %}
+  <div class="tab-pane fade show active" id="company" role="tabpanel">
+    <form method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="profile_type" value="company"><div class="mb-3">
+        <label>Company Name</label>
+        <input type="text" class="form-control" name="company_name" value="{{ company.company_name or '' }}" required>
+      </div>
+      <div class="mb-3">
+        <label>Trading Name</label>
+        <input type="text" class="form-control" name="trading_name" value="{{ company.trading_name or '' }}">
+      </div>
+      <div class="mb-3">
+        <label>Country</label>
+        <select class="form-select" name="country" required>
+          <option value="">Select Country</option>
+          {% for c in countries %}
+            <option value="{{ c }}" {% if company.country == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mb-3">
+        <label>Address Line 1</label>
+        <input type="text" class="form-control" name="address_line1" value="{{ company.address_line_1 or '' }}">
+      </div>
+      <div class="mb-3">
+        <label>Address Line 2</label>
+        <input type="text" class="form-control" name="address_line2" value="{{ company.address_line_2 or '' }}">
+      </div>
+      <div class="mb-3">
+        <label>City</label>
+        <input type="text" class="form-control" name="city" value="{{ company.city or '' }}">
+      </div>
+      <div class="mb-3">
+        <label>Default Currency</label>
+        <select class="form-select" name="default_currency" required>
+          <option value="">Select Currency</option>
+          {% for cur in currencies %}
+            <option value="{{ cur }}" {% if company.currency_code == cur %}selected{% endif %}>{{ cur }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mb-3">
+        <label>Phone</label>
+        <input type="text" class="form-control" name="phone" value="{{ company.phone or '' }}">
+      </div>
+      <div class="mb-3">
+        <label>Email</label>
+        <input type="email" class="form-control" name="email" value="{{ company.email or '' }}">
+      </div>
+      <div class="mb-3">
+        <label>Website</label>
+        <input type="text" class="form-control" name="website" value="{{ company.website or '' }}">
+      </div>
+      <div class="mb-3">
+        <label>Logo</label>
+        <input type="file" class="form-control" name="logo">
+      </div>
+      <button type="submit" class="btn btn-primary">Update Company</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="tab-pane fade {% if not show_company %}show active{% endif %}" id="user" role="tabpanel">
+    <form method="POST">
+      <input type="hidden" name="profile_type" value="user">
+      <div class="mb-3">
+        <label>Full Name</label>
+        <input type="text" class="form-control" name="full_name" value="{{ user.full_name or '' }}">
+      </div>
+      <div class="mb-3">
+        <label>Date of Birth</label>
+        <input type="date" class="form-control" name="dob" value="{{ user.dob.strftime('%Y-%m-%d') if user.dob else '' }}">
+      </div>
+      <div class="mb-3">
+        <label>Phone</label>
+        <input type="text" class="form-control" name="phone" value="{{ user.phone or '' }}">
+      </div>
+      <button type="submit" class="btn btn-primary">Update Profile</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

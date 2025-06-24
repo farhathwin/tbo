@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block title %}Trial Balance{% endblock %}
+
+{% block content %}
+<h3>Trial Balance</h3>
+
+<form method="get" class="row g-3 mb-4">
+  <div class="col-md-4">
+    <label for="fiscal_year_id" class="form-label">Select Fiscal Year</label>
+    <select name="fiscal_year_id" class="form-select" required>
+      <option value="">-- Select Fiscal Year --</option>
+      {% for fy in fiscal_years %}
+        <option value="{{ fy.id }}" {% if fy.id == selected_fiscal_year_id %}selected{% endif %}>
+          {{ fy.name }} ({{ fy.start_date }} to {{ fy.end_date }})
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2 d-flex align-items-end">
+    <button type="submit" class="btn btn-primary">🔍 Filter</button>
+  </div>
+</form>
+
+{% if trial_data %}
+<table class="table table-bordered table-striped table-sm">
+  <thead class="table-light">
+    <tr>
+      <th>Account Code</th>
+      <th>Account Name</th>
+      <th class="text-end">Debit</th>
+      <th class="text-end">Credit</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in trial_data %}
+      <tr>
+        <td>{{ row.code }}</td>
+        <td>{{ row.name }}</td>
+        <td class="text-end">{{ "%.2f"|format(row.debit) if row.debit else "" }}</td>
+        <td class="text-end">{{ "%.2f"|format(row.credit) if row.credit else "" }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr class="fw-bold table-secondary">
+      <td colspan="2" class="text-end">Total</td>
+      <td class="text-end">{{ "%.2f"|format(total_debit) }}</td>
+      <td class="text-end">{{ "%.2f"|format(total_credit) }}</td>
+    </tr>
+    {% if total_debit != total_credit %}
+    <tr>
+      <td colspan="4" class="text-danger text-center">
+        ⚠️ Trial balance mismatch. Please review your journal entries.
+      </td>
+    </tr>
+    {% endif %}
+  </tfoot>
+</table>
+
+<div class="d-flex gap-2 mt-3">
+  <a href="{{ url_for('accounting_routes.export_trial_balance_excel', fiscal_year_id=selected_fiscal_year_id) }}" class="btn btn-success btn-sm">📥 Export to Excel</a>
+  <a href="{{ url_for('accounting_routes.export_trial_balance_pdf', fiscal_year_id=selected_fiscal_year_id) }}" class="btn btn-danger btn-sm">📄 Export to PDF</a>
+</div>
+{% else %}
+  <div class="alert alert-warning">No journal data available for the selected fiscal year.</div>
+{% endif %}
+
+<a href="{{ url_for('accounting_routes.financial_reports') }}" class="btn btn-secondary mt-4 float-end">⬅ Back</a>
+{% endblock %}

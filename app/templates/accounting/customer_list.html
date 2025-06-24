@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% block title %}Customers{% endblock %}
+
+{% block content %}
+<h3>Customers</h3>
+
+<!-- intl-tel-input -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css" />
+<style>
+  .iti {
+    width: 100%;
+  }
+  .iti__country-list {
+    z-index: 9999 !important;
+    max-height: 250px;
+    overflow-y: auto;
+    background-color: white;
+  }
+  /* Optional: Make phone field wider and more visible */
+  #phone {
+    min-width: 260px;
+    letter-spacing: 1px;
+  }
+</style>
+
+<form method="POST" autocomplete="off">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-2">
+      <label>Type</label>
+      <select name="customer_type" class="form-select" required onchange="toggleCustomerFields(this.value)">
+        <option value="">-- Select Type --</option>
+        <option value="Customer">Customer</option>
+        <option value="Agent">Agent</option>
+        <option value="Corporate">Corporate</option>
+      </select>
+    </div>
+
+    <div class="col-md-2" id="titleDiv" style="display:none;">
+      <label>Title</label>
+      <select name="title" class="form-select">
+        <option value="">-- Select --</option>
+        <option value="Mr.">Mr.</option>
+        <option value="Ms.">Ms.</option>
+        <option value="Mrs.">Mrs.</option>
+      </select>
+    </div>
+
+    <div class="col-md-3" id="fullNameDiv" style="display:none;">
+      <label>Full Name</label>
+      <input type="text" name="full_name" class="form-control">
+    </div>
+
+    <div class="col-md-3" id="businessNameDiv" style="display:none;">
+      <label>Business Name</label>
+      <input type="text" name="business_name" class="form-control">
+    </div>
+
+    <div class="col-md-2" style="position: relative; z-index: 1055; min-width: 280px;">
+      <label>Phone</label>
+      <input type="tel" id="phone" name="phone" class="form-control" required>
+    </div>
+
+    <div class="col-md-1">
+      <button type="submit" class="btn btn-primary w-100">Add</button>
+    </div>
+  </div>
+</form>
+
+<hr>
+
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Title</th>
+      <th>Full Name</th>
+      <th>Business Name</th>
+      <th>Phone</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for cust in customers %}
+    <tr>
+      <td>{{ cust.customer_type }}</td>
+      <td>{{ cust.title or '-' }}</td>
+      <td>{{ cust.full_name or '-' }}</td>
+      <td>{{ cust.business_name or '-' }}</td>
+      <td>{{ cust.phone_number }}</td>
+      <td>
+        <a href="{{ url_for('accounting_routes.view_customer', customer_id=cust.id) }}" class="btn btn-sm btn-info">View</a>
+        <a href="{{ url_for('accounting_routes.edit_customer', customer_id=cust.id) }}" class="btn btn-sm btn-warning">Edit</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- intl-tel-input JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/intlTelInput.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/utils.js"></script>
+
+<script>
+function toggleCustomerFields(value) {
+  document.getElementById('titleDiv').style.display = (value === 'Customer') ? 'block' : 'none';
+  document.getElementById('fullNameDiv').style.display = (value === 'Customer') ? 'block' : 'none';
+  document.getElementById('businessNameDiv').style.display = (value === 'Agent' || value === 'Corporate') ? 'block' : 'none';
+}
+</script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const phoneInput = document.querySelector("#phone");
+
+    const iti = window.intlTelInput(phoneInput, {
+      separateDialCode: true,
+      initialCountry: "auto",
+      geoIpLookup: function (success, failure) {
+        fetch('https://ipapi.co/json')
+          .then(res => res.json())
+          .then(data => success(data.country_code))
+          .catch(() => success("US"));
+      },
+      utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/utils.js"
+    });
+
+    const form = phoneInput.closest("form");
+    form.addEventListener("submit", function (e) {
+      if (!iti.isValidNumber()) {
+        e.preventDefault();
+        alert("❌ Please enter a valid phone number.");
+      } else {
+        phoneInput.value = iti.getNumber(); // Submit E.164 format
+      }
+    });
+  });
+</script>
+{% endblock %}

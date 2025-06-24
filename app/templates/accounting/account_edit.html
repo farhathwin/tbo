@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Edit Account{% endblock %}
+
+{% block content %}
+<h3>Edit Account</h3>
+
+<form method="POST" class="mb-4">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label>Account Type</label>
+      <select name="account_type" class="form-select" required>
+        {% for atype in account_types %}
+          {% if atype.is_header %}
+            <option disabled class="fw-bold">{{ atype.name }}</option>
+          {% else %}
+            <option value="{{ atype.name }}" {% if atype.name == account.account_type %}selected{% endif %}>
+              {{ '&nbsp;&nbsp;' * (atype.level or 0) }}{{ atype.name }}
+            </option>
+          {% endif %}
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label>Account Code</label>
+      <input type="text" name="account_code" class="form-control" value="{{ account.account_code }}" required>
+    </div>
+    <div class="col-md-3">
+      <label>Account Name</label>
+      <input type="text" name="account_name" class="form-control" value="{{ account.account_name }}" required>
+    </div>
+    <div class="col-md-2">
+      <div class="form-check mt-4">
+        <input class="form-check-input" type="checkbox" name="is_reconcilable" {% if account.is_reconcilable %}checked{% endif %}>
+        <label class="form-check-label">Recon.</label>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-success w-100">Update</button>
+    </div>
+  </div>
+</form>
+
+<a href="{{ url_for('accounting_routes.chart_of_accounts') }}" class="btn btn-secondary">⬅ Back</a>
+{% endblock %}

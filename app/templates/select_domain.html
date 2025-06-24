@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head><title>Select Domain</title></head>
+<body>
+  <div class="container mt-5">
+    <h3>Select your company domain</h3>
+    <ul>
+      {% for d in domains %}
+        <li><a href="{{ url_for('register_routes.select_domain', domain=d) }}">{{ d }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+</body>
+</html>

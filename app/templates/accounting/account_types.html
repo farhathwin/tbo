@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Account Types{% endblock %}
+
+{% block content %}
+<h3>Chart of Account Types</h3>
+
+<form method="POST" class="mb-4">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label for="name" class="form-label">Account Type Name</label>
+      <input type="text" name="name" id="name" class="form-control" placeholder="e.g. Assets" required>
+    </div>
+    <div class="col-md-3">
+      <label for="parent_id">Parent Account Type</label>
+      <select name="parent_id" class="form-select">
+        <option value="">-- Select Parent --</option>
+        {% for parent in valid_parents %}
+          <option value="{{ parent.id }}" {% if parent.is_header %}style="font-weight: bold;" disabled{% endif %}>
+            {{ parent.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-primary w-100">Add Type</button>
+    </div>
+  </div>
+</form>
+
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Parent</th>
+      <th>Created At</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for atype in account_types %}
+      <tr>
+        <td>{{ atype.name }}</td>
+        <td>{{ atype.parent.name if atype.parent else '-' }}</td>
+        <td>{{ atype.created_at.strftime('%Y-%m-%d') }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
