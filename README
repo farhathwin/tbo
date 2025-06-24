@@ -1,6 +1,7 @@
-
-
-
+This repository uses Flask-Migrate for database schema changes. The
+`scripts/migrate_tenants.py` script upgrades all tenant databases by
+iterating over domains stored in `master_company` and running Alembic
+`upgrade` on each.
 
 from app import create_app, db
 from flask_migrate import Migrate, upgrade

@@ -340,12 +340,13 @@ class PaxDetail(Base):
 
     id = Column(Integer, primary_key=True)
     invoice_id = Column(Integer, ForeignKey('invoices.id'), nullable=False)
-    full_name = Column(String(100), nullable=False)
+    pax_type = Column(String(10))
+    last_name = Column(String(100), nullable=False)
+    first_name = Column(String(100), nullable=False)
+    date_of_birth = Column(Date)
     passport_no = Column(String(50))
     nationality = Column(String(50))
-    dob = Column(Date)
-    ticket_number = Column(String(50))  # optional
-    remarks = Column(String(255))
+    passport_expiry_date = Column(Date)
 
     invoice = relationship('Invoice', back_populates='pax_details')
 

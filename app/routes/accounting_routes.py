@@ -1837,15 +1837,18 @@ def add_pax_detail(invoice_id):
     try:
         dob_str = request.form.get('dob')
         dob = datetime.strptime(dob_str, '%Y-%m-%d').date() if dob_str else None
+        exp_str = request.form.get('passport_expiry_date')
+        exp_date = datetime.strptime(exp_str, '%Y-%m-%d').date() if exp_str else None
 
         pax = PaxDetail(
             invoice_id=invoice.id,
-            full_name=request.form.get('full_name'),
+            pax_type=request.form.get('pax_type'),
+            last_name=request.form.get('last_name'),
+            first_name=request.form.get('first_name'),
+            date_of_birth=dob,
             passport_no=request.form.get('passport_no'),
             nationality=request.form.get('nationality'),
-            dob=dob,
-            ticket_number=request.form.get('ticket_number'),
-            remarks=request.form.get('remarks')
+            passport_expiry_date=exp_date
         )
 
         tenant_session.add(pax)

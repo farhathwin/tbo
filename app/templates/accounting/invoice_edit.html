@@ -14,9 +14,25 @@
 <h5>👤 Pax Details</h5>
 <form method="POST" action="{{ url_for('accounting_routes.add_pax_detail', invoice_id=invoice.id) }}">
   <div class="row g-2">
-    <div class="col-md-3">
-      <label>Full Name</label>
-      <input type="text" name="full_name" class="form-control" required>
+    <div class="col-md-2">
+      <label>Pax Type</label>
+      <select name="pax_type" class="form-select">
+        <option value="ADT">Adult</option>
+        <option value="CHD">Child</option>
+        <option value="INF">Infant</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label>Last Name</label>
+      <input type="text" name="last_name" class="form-control" required>
+    </div>
+    <div class="col-md-2">
+      <label>First Name</label>
+      <input type="text" name="first_name" class="form-control" required>
+    </div>
+    <div class="col-md-2">
+      <label>Date of Birth</label>
+      <input type="date" name="dob" class="form-control">
     </div>
     <div class="col-md-2">
       <label>Passport No</label>
@@ -27,16 +43,8 @@
       <input type="text" name="nationality" class="form-control">
     </div>
     <div class="col-md-2">
-      <label>Date of Birth</label>
-      <input type="date" name="dob" class="form-control">
-    </div>
-    <div class="col-md-2">
-      <label>Ticket Number</label>
-      <input type="text" name="ticket_number" class="form-control">
-    </div>
-    <div class="col-md-3">
-      <label>Remarks</label>
-      <input type="text" name="remarks" class="form-control">
+      <label>Passport Expiry</label>
+      <input type="date" name="passport_expiry_date" class="form-control">
     </div>
     <div class="col-md-1">
       <label>&nbsp;</label>
@@ -51,23 +59,25 @@
   <table class="table table-sm table-bordered">
     <thead>
       <tr>
-        <th>Name</th>
+        <th>Type</th>
+        <th>Last Name</th>
+        <th>First Name</th>
+        <th>DOB</th>
         <th>Passport</th>
         <th>Nationality</th>
-        <th>DOB</th>
-        <th>Ticket #</th>
-        <th>Remarks</th>
+        <th>Passport Expiry</th>
       </tr>
     </thead>
     <tbody>
       {% for pax in invoice.pax_details %}
       <tr>
-        <td>{{ pax.full_name }}</td>
+        <td>{{ pax.pax_type }}</td>
+        <td>{{ pax.last_name }}</td>
+        <td>{{ pax.first_name }}</td>
+        <td>{{ pax.date_of_birth.strftime('%Y-%m-%d') if pax.date_of_birth }}</td>
         <td>{{ pax.passport_no }}</td>
         <td>{{ pax.nationality }}</td>
-        <td>{{ pax.dob.strftime('%Y-%m-%d') if pax.dob }}</td>
-        <td>{{ pax.ticket_number }}</td>
-        <td>{{ pax.remarks }}</td>
+        <td>{{ pax.passport_expiry_date.strftime('%Y-%m-%d') if pax.passport_expiry_date }}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -100,7 +110,7 @@
       <select name="pax_id" class="form-select">
         <option value="">-- Select Pax --</option>
         {% for pax in invoice.pax_details %}
-        <option value="{{ pax.id }}">{{ pax.full_name }}</option>
+        <option value="{{ pax.id }}">{{ pax.first_name }} {{ pax.last_name }}</option>
         {% endfor %}
       </select>
     </div>
@@ -175,7 +185,7 @@
   <tbody>
     {% for line in invoice.lines %}
     <tr>
-      <td>{{ line.pax.full_name if line.pax else '-' }}</td>
+      <td>{{ (line.pax.first_name ~ ' ' ~ line.pax.last_name) if line.pax else '-' }}</td>
       <td>{{ line.type }}</td>
       <td>{{ line.sub_type }}</td>
       <td>{{ "{:,.2f}".format(line.base_fare or 0) }}</td>
