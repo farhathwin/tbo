@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, UniqueConstraint, Float, Date, Numeric, Text
@@ -291,6 +291,7 @@ class Invoice(Base):
     company_id = Column(Integer, nullable=False)
     invoice_number = Column(String, nullable=False, unique=True)
     invoice_date = Column(Date, nullable=False)
+    transaction_date = Column(Date, nullable=False, default=date.today)
     customer_id = Column(Integer, ForeignKey('customers.id'), nullable=False)
     service_type = Column(String, nullable=False)  # e.g., Flight, Hotel, Visa
     total_amount = Column(Numeric(12, 2), nullable=False)
@@ -300,6 +301,13 @@ class Invoice(Base):
     due_term = Column(Integer, default=0)
     staff_id = Column(Integer)
     staff = relationship("TenantUser", primaryjoin="Invoice.staff_id==TenantUser.id")
+
+    created_by_user = relationship(
+        "TenantUser",
+        primaryjoin="Invoice.created_by==TenantUser.id",
+        foreign_keys="Invoice.created_by",
+        viewonly=True,
+    )
 
     # audit
     created_by = Column(Integer)

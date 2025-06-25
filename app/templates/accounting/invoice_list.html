@@ -6,10 +6,11 @@
   <div class="row g-3">
     <div class="col-md-3">
       <label>Customer</label>
-      <select name="customer_id" class="form-select" required>
+      <input type="text" id="customer-filter" class="form-control mb-2" placeholder="Search by name or phone">
+      <select name="customer_id" id="customer-select" class="form-select" required>
         <option value="">-- Select --</option>
         {% for cust in customers %}
-        <option value="{{ cust.id }}">{{ cust.full_name or cust.business_name }}</option>
+        <option value="{{ cust.id }}">{{ cust.full_name or cust.business_name }} - {{ cust.phone_number }}</option>
         {% endfor %}
       </select>
       <div class="form-text"><a href="{{ url_for('accounting_routes.customer_list') }}">Add New Customer</a></div>
@@ -33,8 +34,13 @@
       <input type="date" name="invoice_date" class="form-control" value="{{ current_date or '' }}" required>
     </div>
     <div class="col-md-2">
-      <label>Staff Email</label>
-      <input type="email" name="staff_email" class="form-control">
+      <label>Travel Consultant</label>
+      <input name="staff_email" list="staff-list" class="form-control" placeholder="Select consultant">
+      <datalist id="staff-list">
+        {% for s in staff_list %}
+        <option value="{{ s.email }}"></option>
+        {% endfor %}
+      </datalist>
     </div>
     <div class="col-md-2">
       <label>Destination</label>
@@ -63,10 +69,12 @@
     <tr>
       <th>Invoice #</th>
       <th>Customer</th>
-      <th>Date</th>
+      <th>Invoice Date</th>
+      <th>Transaction Date</th>
       <th>Service</th>
       <th>Destination</th>
-      <th>Staff</th>
+      <th>Travel Consultant</th>
+      <th>Created By</th>
       <th>Due</th>
       <th>Total</th>
       <th>Status</th>
@@ -79,9 +87,11 @@
       <td>{{ invoice.invoice_number }}</td>
       <td>{{ invoice.customer.full_name or invoice.customer.business_name }}</td>
       <td>{{ invoice.invoice_date.strftime('%Y-%m-%d') }}</td>
+      <td>{{ invoice.transaction_date.strftime('%Y-%m-%d') }}</td>
       <td>{{ invoice.service_type }}</td>
       <td>{{ invoice.destination or '-' }}</td>
       <td>{{ invoice.staff.email if invoice.staff else '-' }}</td>
+      <td>{{ invoice.created_by_user.email if invoice.created_by_user else '-' }}</td>
       <td>{{ invoice.due_term }}</td>
       <td>{{ "{:,.2f}".format(invoice.total_amount) }}</td>
       <td><span class="badge bg-info">{{ invoice.status }}</span></td>
@@ -90,7 +100,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="10" class="text-center text-muted">No invoices found.</td></tr>
+    <tr><td colspan="12" class="text-center text-muted">No invoices found.</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -114,6 +124,16 @@ document.getElementById('destination').addEventListener('input', function() {
       option.text = `${a.name} (${a.iata})`;
       list.appendChild(option);
     });
+});
+
+document.getElementById('customer-filter').addEventListener('input', function() {
+  const term = this.value.toLowerCase();
+  const select = document.getElementById('customer-select');
+  Array.from(select.options).forEach(opt => {
+    if (opt.value === '') return;
+    const text = opt.textContent.toLowerCase();
+    opt.hidden = !text.includes(term);
+  });
 });
 </script>
 

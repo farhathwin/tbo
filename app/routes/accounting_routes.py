@@ -1629,6 +1629,7 @@ def invoice_list():
         customer_id = request.form.get('customer_id')
         service_type = request.form.get('service_type')
         invoice_date = request.form.get('invoice_date')
+        transaction_date = date.today()
         staff_email = request.form.get('staff_email')
         destination = request.form.get('destination')
         due_term = request.form.get('due_term') or 0
@@ -1641,6 +1642,7 @@ def invoice_list():
             company_id=company_id,
             invoice_number=invoice_number,
             invoice_date=datetime.strptime(invoice_date, '%Y-%m-%d').date(),
+            transaction_date=transaction_date,
             customer_id=customer_id,
             service_type=service_type,
             currency=currency,
@@ -1656,8 +1658,15 @@ def invoice_list():
         return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
 
     customers = tenant_session.query(Customer).filter_by(is_active=True).all()
+    staff_list = tenant_session.query(TenantUser).filter_by(is_suspended=False).all()
     invoices = tenant_session.query(Invoice).order_by(Invoice.created_at.desc()).all()
-    return render_template('accounting/invoice_list.html', invoices=invoices, customers=customers, current_date=date.today().isoformat())
+    return render_template(
+        'accounting/invoice_list.html',
+        invoices=invoices,
+        customers=customers,
+        staff_list=staff_list,
+        current_date=date.today().isoformat(),
+    )
 
 
 @accounting_routes.route('/invoices/edit/<int:invoice_id>', methods=['GET'])
