@@ -292,16 +292,16 @@ class Invoice(Base):
     invoice_number = Column(String, nullable=False, unique=True)
     invoice_date = Column(Date, nullable=False)
     customer_id = Column(Integer, ForeignKey('customers.id'), nullable=False)
-    service_type = Column(String, nullable=False)  # e.g., Flight, Hotel, Visa
+    service_type = Column(String, nullable=False)
     total_amount = Column(Numeric(12, 2), nullable=False)
     currency = Column(String, nullable=False, default='LKR')
-    status = Column(String, default='Draft')  # Draft, Finalized, Paid
+    status = Column(String, default='Draft')
     destination = Column(String(10))
     due_term = Column(Integer, default=0)
-    staff_id = Column(Integer)
-    staff = relationship("TenantUser", primaryjoin="Invoice.staff_id==TenantUser.id")
 
-    # audit
+    staff_id = Column(Integer, ForeignKey('users.id'))  # ✅ FIXED
+    staff = relationship("TenantUser", backref="invoices")  # ✅ FIXED
+
     created_by = Column(Integer)
     created_at = Column(DateTime, default=datetime.utcnow)
 
