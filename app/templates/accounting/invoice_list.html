@@ -12,6 +12,7 @@
         <option value="{{ cust.id }}">{{ cust.full_name or cust.business_name }}</option>
         {% endfor %}
       </select>
+      <div class="form-text"><a href="{{ url_for('accounting_routes.customer_list') }}">Add New Customer</a></div>
     </div>
     <div class="col-md-3">
       <label>Service Type</label>
@@ -24,16 +25,29 @@
       </select>
     </div>
     <div class="col-md-2">
+      <label>Transaction Date</label>
+      <input type="date" class="form-control" value="{{ current_date or '' }}" disabled>
+    </div>
+    <div class="col-md-2">
       <label>Invoice Date</label>
       <input type="date" name="invoice_date" class="form-control" value="{{ current_date or '' }}" required>
     </div>
     <div class="col-md-2">
+      <label>Staff Email</label>
+      <input type="email" name="staff_email" class="form-control">
+    </div>
+    <div class="col-md-2">
+      <label>Destination</label>
+      <input type="text" name="destination" id="destination" class="form-control" list="airport-options" placeholder="Airport code">
+      <datalist id="airport-options"></datalist>
+    </div>
+    <div class="col-md-2">
+      <label>Due Term</label>
+      <input type="number" name="due_term" class="form-control" min="0">
+    </div>
+    <div class="col-md-2">
       <label>Currency</label>
       <input type="text" name="currency" class="form-control" value="LKR">
-    </div>
-    <div class="col-md-4">
-      <label>Notes</label>
-      <textarea name="notes" class="form-control"></textarea>
     </div>
     <div class="col-md-2">
       <label>&nbsp;</label>
@@ -51,6 +65,9 @@
       <th>Customer</th>
       <th>Date</th>
       <th>Service</th>
+      <th>Destination</th>
+      <th>Staff</th>
+      <th>Due</th>
       <th>Total</th>
       <th>Status</th>
       <th>Actions</th>
@@ -63,6 +80,9 @@
       <td>{{ invoice.customer.full_name or invoice.customer.business_name }}</td>
       <td>{{ invoice.invoice_date.strftime('%Y-%m-%d') }}</td>
       <td>{{ invoice.service_type }}</td>
+      <td>{{ invoice.destination or '-' }}</td>
+      <td>{{ invoice.staff.email if invoice.staff else '-' }}</td>
+      <td>{{ invoice.due_term }}</td>
       <td>{{ "{:,.2f}".format(invoice.total_amount) }}</td>
       <td><span class="badge bg-info">{{ invoice.status }}</span></td>
       <td>
@@ -70,10 +90,32 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="7" class="text-center text-muted">No invoices found.</td></tr>
+    <tr><td colspan="10" class="text-center text-muted">No invoices found.</td></tr>
     {% endfor %}
   </tbody>
 </table>
+
+<script>
+let airports = [];
+fetch('https://cdn.jsdelivr.net/npm/airport-codes@0.0.4/airports.json')
+  .then(res => res.json())
+  .then(data => airports = data);
+
+document.getElementById('destination').addEventListener('input', function() {
+  const term = this.value.toUpperCase();
+  const list = document.getElementById('airport-options');
+  list.innerHTML = '';
+  if (term.length < 2) return;
+  airports.filter(a => a.iata && a.iata.startsWith(term))
+    .slice(0, 10)
+    .forEach(a => {
+      const option = document.createElement('option');
+      option.value = a.iata;
+      option.text = `${a.name} (${a.iata})`;
+      list.appendChild(option);
+    });
+});
+</script>
 
 {% endblock %}
 
