@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response, render_template_string, Response
 from datetime import datetime, date
-from app.models.models import FiscalYear,Account, AccountType, CompanyProfile ,JournalEntry, JournalLine, Customer, Supplier, CashBank, Invoice, InvoiceLine, PaxDetail
+from app.models.models import FiscalYear,Account, AccountType, CompanyProfile ,JournalEntry, JournalLine, Customer, Supplier, CashBank, Invoice, InvoiceLine, PaxDetail, TenantUser
 from app.routes.register_routes import current_tenant_session
 from sqlalchemy import or_, and_, func
 from sqlalchemy.orm import joinedload
@@ -1607,10 +1607,14 @@ def add_cashbank_opening_balance(cb_id):
 
 # ---Invoice  routes  ---
 
-def generate_invoice_number(company_id):
-    today_str = datetime.utcnow().strftime('%Y%m%d')
-    random_part = str(uuid.uuid4())[:6].upper()
-    return f"INV-{company_id}-{today_str}-{random_part}"
+def generate_invoice_number(session):
+    """Return next invoice number in the format I000001."""
+    last_invoice = session.query(Invoice).order_by(Invoice.id.desc()).first()
+    if last_invoice and last_invoice.invoice_number.startswith("I") and last_invoice.invoice_number[1:].isdigit():
+        next_num = int(last_invoice.invoice_number[1:]) + 1
+    else:
+        next_num = 1
+    return f"I{next_num:06d}"
 
 @accounting_routes.route('/invoices', methods=['GET', 'POST'])
 def invoice_list():
@@ -1625,10 +1629,14 @@ def invoice_list():
         customer_id = request.form.get('customer_id')
         service_type = request.form.get('service_type')
         invoice_date = request.form.get('invoice_date')
+        staff_email = request.form.get('staff_email')
+        destination = request.form.get('destination')
+        due_term = request.form.get('due_term') or 0
         currency = request.form.get('currency') or 'LKR'
-        notes = request.form.get('notes')
 
-        invoice_number = generate_invoice_number(company_id)
+        staff = tenant_session.query(TenantUser).filter_by(email=staff_email).first() if staff_email else None
+
+        invoice_number = generate_invoice_number(tenant_session)
         invoice = Invoice(
             company_id=company_id,
             invoice_number=invoice_number,
@@ -1637,7 +1645,9 @@ def invoice_list():
             service_type=service_type,
             currency=currency,
             total_amount=0.00,  # updated after adding lines
-            notes=notes,
+            destination=destination,
+            due_term=int(due_term),
+            staff_id=staff.id if staff else None,
             created_by=user_id
         )
         tenant_session.add(invoice)

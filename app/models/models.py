@@ -296,7 +296,10 @@ class Invoice(Base):
     total_amount = Column(Numeric(12, 2), nullable=False)
     currency = Column(String, nullable=False, default='LKR')
     status = Column(String, default='Draft')  # Draft, Finalized, Paid
-    notes = Column(Text)
+    destination = Column(String(10))
+    due_term = Column(Integer, default=0)
+    staff_id = Column(Integer)
+    staff = relationship("TenantUser", primaryjoin="Invoice.staff_id==TenantUser.id")
 
     # audit
     created_by = Column(Integer)
