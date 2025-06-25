@@ -1681,60 +1681,48 @@ def add_invoice_line(invoice_id):
 
     tenant_session = current_tenant_session()
     invoice = tenant_session.query(Invoice).filter_by(id=invoice_id).first()
-
     if not invoice:
         flash("❌ Invoice not found", "danger")
         return redirect(url_for('accounting_routes.invoice_list'))
 
     try:
-        line_type = request.form.get('type')  # Air Ticket / Other
-        sub_type = request.form.get('sub_type')  # IATA / Budget / Hotel / Visa, etc.
-
+        type = request.form.get('type')
+        sub_type = request.form.get('sub_type')
         pax_id = request.form.get('pax_id') or None
         base_fare = Decimal(request.form.get('base_fare') or 0)
         tax = Decimal(request.form.get('tax') or 0)
         sell_price = Decimal(request.form.get('sell_price') or 0)
+        profit = sell_price - (base_fare + tax) if type == 'Air Ticket' else sell_price - base_fare
+        pnr = request.form.get('pnr')
+        designator = request.form.get('designator') if sub_type == 'IATA' else None
+        ticket_no = request.form.get('ticket_no') if sub_type == 'IATA' else None
+        supplier_id = request.form.get('supplier_id') or None
 
-        if line_type == 'Air Ticket':
-            profit = sell_price - (base_fare + tax)
-        elif line_type == 'Other':
-            profit = sell_price - base_fare
-        else:
-            profit = Decimal(0)
-
-        ticket_no = request.form.get('ticket_no')
-        if ticket_no:
-            digits = ticket_no.replace('-', '')
-            if len(digits) < 10 or len(digits) > 16:
-                flash("❌ Invalid ticket number length", "danger")
-                return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice_id))
-
-        new_line = InvoiceLine(
+        line = InvoiceLine(
             invoice_id=invoice.id,
-            type=line_type,
+            type=type,
             sub_type=sub_type,
             pax_id=int(pax_id) if pax_id else None,
             base_fare=base_fare,
             tax=tax,
             sell_price=sell_price,
             profit=profit,
-            pnr=request.form.get('pnr'),
-            designator=request.form.get('designator'),
+            pnr=pnr,
+            designator=designator,
             ticket_no=ticket_no,
-            supplier_id=int(request.form.get('supplier_id')) if request.form.get('supplier_id') else None
+            supplier_id=int(supplier_id) if supplier_id else None,
         )
 
-        tenant_session.add(new_line)
+        tenant_session.add(line)
         tenant_session.commit()
-        recalculate_invoice_totals(invoice, tenant_session)
-
-        flash("✅ Invoice line added", "success")
+        flash("✅ Line item added", "success")
 
     except Exception as e:
         tenant_session.rollback()
-        flash(f"❌ Error adding line: {str(e)}", "danger")
+        flash(f"❌ Error adding invoice line: {str(e)}", "danger")
 
-    return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice_id))
+    return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
 
 
 
@@ -1745,54 +1733,37 @@ def edit_invoice_line(line_id):
         return redirect(url_for('register_routes.login'))
 
     tenant_session = current_tenant_session()
-
     line = tenant_session.query(InvoiceLine).filter_by(id=line_id).first()
     if not line:
         flash("❌ Invoice line not found", "danger")
         return redirect(url_for('accounting_routes.invoice_list'))
 
     suppliers = tenant_session.query(Supplier).filter_by(is_active=True).order_by(Supplier.business_name).all()
+    pax_list = tenant_session.query(PaxDetail).filter_by(invoice_id=line.invoice_id).all()
 
     if request.method == 'POST':
-        line.type = request.form.get('type')
-        line.sub_type = request.form.get('sub_type')
-        pax_id = request.form.get('pax_id')
-        line.pax_id = int(pax_id) if pax_id else None
-        line.base_fare = Decimal(request.form.get('base_fare') or 0)
-        line.tax = Decimal(request.form.get('tax') or 0)
-        line.sell_price = Decimal(request.form.get('sell_price') or 0)
+        try:
+            line.type = request.form.get('type')
+            line.sub_type = request.form.get('sub_type')
+            line.pax_id = int(request.form.get('pax_id') or 0) or None
+            line.base_fare = Decimal(request.form.get('base_fare') or 0)
+            line.tax = Decimal(request.form.get('tax') or 0)
+            line.sell_price = Decimal(request.form.get('sell_price') or 0)
+            line.profit = line.sell_price - (line.base_fare + line.tax) if line.type == 'Air Ticket' else line.sell_price - line.base_fare
+            line.pnr = request.form.get('pnr')
+            line.designator = request.form.get('designator') if line.sub_type == 'IATA' else None
+            line.ticket_no = request.form.get('ticket_no') if line.sub_type == 'IATA' else None
+            line.supplier_id = int(request.form.get('supplier_id')) if request.form.get('supplier_id') else None
 
-        if line.type == 'Air Ticket':
-            line.profit = line.sell_price - (line.base_fare + line.tax)
-        else:
-            line.profit = line.sell_price - line.base_fare
+            tenant_session.commit()
+            flash("✅ Line item updated", "success")
+            return redirect(url_for('accounting_routes.edit_invoice', invoice_id=line.invoice_id))
 
-        line.pnr = request.form.get('pnr')
-        line.designator = request.form.get('designator')
-        ticket_no = request.form.get('ticket_no')
-        if ticket_no:
-            digits = ticket_no.replace('-', '')
-            if len(digits) < 10 or len(digits) > 16:
-                flash("❌ Invalid ticket number length", "danger")
-                return redirect(url_for('accounting_routes.edit_invoice_line', line_id=line.id))
-        line.ticket_no = ticket_no
+        except Exception as e:
+            tenant_session.rollback()
+            flash(f"❌ Error updating line: {str(e)}", "danger")
 
-        supplier_id = request.form.get('supplier_id')
-        line.supplier_id = int(supplier_id) if supplier_id else None
-
-        tenant_session.commit()
-        recalculate_invoice_totals(line.invoice, tenant_session)
-        flash("✅ Invoice line updated", "success")
-        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=line.invoice_id))
-
-    recalculate_invoice_totals(line.invoice, tenant_session)
-
-    return render_template(
-        'accounting/invoice_line_edit.html',
-        line=line,
-        suppliers=suppliers
-    )
-
+    return render_template('accounting/invoice_line_edit.html', line=line, suppliers=suppliers, pax_list=pax_list)
 @accounting_routes.route('/invoice-lines/delete/<int:line_id>')
 def delete_invoice_line(line_id):
     if 'domain' not in session:

@@ -53,7 +53,6 @@
   </div>
 </form>
 
-
 {% if invoice.pax_details %}
 <div class="mt-3">
   <table class="table table-sm table-bordered">
@@ -99,13 +98,9 @@
     </div>
     <div class="col-md-2">
       <label>Sub Type</label>
-      <select name="sub_type" id="sub_type" class="form-select" required onchange="toggleSubTypeFields()">
-        <option value="">-- Select Sub Type --</option>
-        <option value="Air Ticket">Air Ticket</option>
-      </select>
+      <select name="sub_type" id="sub_type" class="form-select" required onchange="toggleSubTypeFields()"></select>
     </div>
-
-    <div class="col-md-3 pax-box">
+    <div class="col-md-2 pax-box d-none">
       <label>Passenger</label>
       <select name="pax_id" class="form-select">
         <option value="">-- Select Pax --</option>
@@ -114,37 +109,34 @@
         {% endfor %}
       </select>
     </div>
-
     <div class="col-md-2">
       <label>Base Fare</label>
       <input type="number" name="base_fare" id="base_fare" step="0.01" class="form-control" oninput="calcProfit()">
     </div>
-    <div class="col-md-2 tax-box">
+    <div class="col-md-2 tax-box d-none">
       <label>Tax</label>
       <input type="number" name="tax" id="tax" step="0.01" class="form-control" oninput="calcProfit()">
     </div>
     <div class="col-md-2">
       <label>Sell Price</label>
-      <input type="number" name="sell_price" id="sell_price" step="0.01" class="form-control" oninput="calcProfit()" required>
+      <input type="number" name="sell_price" id="sell_price" step="0.01" class="form-control" oninput="calcProfit()">
     </div>
     <div class="col-md-2">
       <label>Profit</label>
       <input type="text" name="profit" id="profit" class="form-control" readonly>
     </div>
-
-    <div class="col-md-2 pnr-box">
-      <label id="pnrLabel">PNR</label>
+    <div class="col-md-2">
+      <label id="pnrLabel">PNR / Ref</label>
       <input type="text" name="pnr" class="form-control">
     </div>
-    <div class="col-md-2 iata-only-field" id="designatorBox">
+    <div class="col-md-2 iata-only-field d-none">
       <label>Designator</label>
       <input type="text" name="designator" class="form-control">
     </div>
-    <div class="col-md-3 iata-only-field" id="ticketNoBox">
+    <div class="col-md-3 iata-only-field d-none">
       <label>Ticket No</label>
       <input type="text" name="ticket_no" class="form-control" maxlength="18" pattern="\d{10,16}(-\d{1,2})?" title="10-16 digits, optionally followed by - and up to two digits">
     </div>
-
     <div class="col-md-3">
       <label>Supplier</label>
       <select name="supplier_id" class="form-select">
@@ -154,14 +146,12 @@
         {% endfor %}
       </select>
     </div>
-
     <div class="col-md-1">
       <label>&nbsp;</label>
       <button type="submit" class="btn btn-success w-100">Add</button>
     </div>
   </div>
 </form>
-
 
 <hr>
 <h5>📦 Invoice Items</h5>
@@ -176,7 +166,6 @@
       <th>Sell</th>
       <th>Profit</th>
       <th>PNR / Ref</th>
-      <th>Designator</th>
       <th>Ticket No</th>
       <th>Supplier</th>
       <th>Actions</th>
@@ -193,8 +182,7 @@
       <td>{{ "{:,.2f}".format(line.sell_price) }}</td>
       <td>{{ "{:,.2f}".format(line.profit or 0) }}</td>
       <td>{{ line.pnr }}</td>
-      <td>{{ line.designator }}</td>
-      <td>{{ line.ticket_no }}</td>
+      <td>{{ line.designator }}{{ line.ticket_no }}</td>
       <td>{{ line.supplier.business_name if line.supplier else '-' }}</td>
       <td>
         <a href="{{ url_for('accounting_routes.edit_invoice_line', line_id=line.id) }}" class="btn btn-sm btn-primary">Edit</a>
@@ -207,28 +195,18 @@
 <form method="POST" action="{{ url_for('accounting_routes.save_invoice', invoice_id=invoice.id) }}">
   <button type="submit" class="btn btn-primary">💾 Save</button>
 </form>
-
 <a href="{{ url_for('accounting_routes.invoice_list') }}" class="btn btn-secondary mt-3">⬅ Back to Invoice List</a>
-{% endblock %}
-
 
 <script>
-document.addEventListener("DOMContentLoaded", function () {
-  toggleTypeFields();
-  document.getElementById("type").addEventListener("change", toggleTypeFields);
-  document.getElementById("sub_type").addEventListener("change", toggleSubTypeFields);
-});
-
 function calcProfit() {
   const base = parseFloat(document.getElementById("base_fare").value) || 0;
   const tax = parseFloat(document.getElementById("tax").value) || 0;
   const sell = parseFloat(document.getElementById("sell_price").value) || 0;
   const type = document.getElementById("type").value;
-
   let profit = 0;
   if (type === "Air Ticket") {
     profit = sell - (base + tax);
-  } else if (type === "Other") {
+  } else {
     profit = sell - base;
   }
   document.getElementById("profit").value = profit.toFixed(2);
@@ -238,31 +216,38 @@ function toggleTypeFields() {
   const type = document.getElementById("type").value;
   const subTypeSelect = document.getElementById("sub_type");
   subTypeSelect.innerHTML = '<option value="">-- Select Sub Type --</option>';
-
+  const taxBox = document.querySelector('.tax-box');
+  const paxBox = document.querySelector('.pax-box');
   const pnrLabel = document.getElementById("pnrLabel");
-  document.querySelector('.tax-box').classList.add('d-none');
-  document.querySelector('.pax-box').classList.add('d-none');
 
   if (type === "Air Ticket") {
     subTypeSelect.innerHTML += '<option value="IATA">IATA Airline</option><option value="Budget">Budget Airline</option>';
-    document.querySelector('.tax-box').classList.remove('d-none');
-    document.querySelector('.pax-box').classList.remove('d-none');
-    pnrLabel.textContent = 'PNR';
+    taxBox.classList.remove("d-none");
+    paxBox.classList.remove("d-none");
+    pnrLabel.textContent = "PNR";
   } else if (type === "Other") {
-    subTypeSelect.innerHTML += '<option value="Hotel">Hotel</option><option value="Packages">Packages</option><option value="Transfer">Transfer</option><option value="Visa">Visa</option><option value="Insurance">Insurance</option><option value="Other">Other</option>';
-    pnrLabel.textContent = 'Reference';
+    ["Hotel","Packages","Transfer","Visa","Insurance","Other"].forEach(option => {
+      subTypeSelect.innerHTML += `<option value="${option}">${option}</option>`;
+    });
+    taxBox.classList.add("d-none");
+    paxBox.classList.add("d-none");
+    pnrLabel.textContent = "Reference";
   }
-
   toggleSubTypeFields();
 }
 
 function toggleSubTypeFields() {
-  const type = document.getElementById("type").value;
   const subType = document.getElementById("sub_type").value;
-  document.querySelectorAll('.iata-only-field').forEach(e => e.classList.add('d-none'));
-
-  if (type === "Air Ticket" && subType === "IATA") {
-    document.querySelectorAll('.iata-only-field').forEach(e => e.classList.remove('d-none'));
+  document.querySelectorAll('.iata-only-field').forEach(field => field.classList.add('d-none'));
+  if (subType === "IATA") {
+    document.querySelectorAll('.iata-only-field').forEach(field => field.classList.remove('d-none'));
   }
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+  toggleTypeFields();
+  document.getElementById("type").addEventListener("change", toggleTypeFields);
+  document.getElementById("sub_type").addEventListener("change", toggleSubTypeFields);
+});
 </script>
+{% endblock %}

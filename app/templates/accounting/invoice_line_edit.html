@@ -6,15 +6,16 @@
   <div class="row g-2 mb-2">
     <div class="col-md-2">
       <label>Type</label>
-      <select name="type" id="type" class="form-select" required onchange="toggleTypeFields()">
+      <select name="type" id="type" class="form-select" required>
+        <option value="">-- Select --</option>
         <option value="Air Ticket" {% if line.type == 'Air Ticket' %}selected{% endif %}>Air Ticket</option>
         <option value="Other" {% if line.type == 'Other' %}selected{% endif %}>Other</option>
       </select>
     </div>
     <div class="col-md-2">
       <label>Sub Type</label>
-      <select name="sub_type" id="sub_type" class="form-select" required onchange="toggleSubTypeFields()">
-        <option value="">-- Select Sub Type --</option>
+      <select name="sub_type" id="sub_type" class="form-select" required>
+        <!-- Options will be loaded by JS -->
       </select>
     </div>
     <div class="col-md-3 pax-box">
@@ -28,31 +29,32 @@
     </div>
     <div class="col-md-2">
       <label>Base Fare</label>
-      <input type="number" name="base_fare" id="base_fare" step="0.01" class="form-control" value="{{ line.base_fare }}" oninput="calcProfit()">
+      <input type="number" name="base_fare" id="base_fare" step="0.01" class="form-control" value="{{ line.base_fare or 0 }}" oninput="calcProfit()">
     </div>
     <div class="col-md-2 tax-box">
       <label>Tax</label>
-      <input type="number" name="tax" id="tax" step="0.01" class="form-control" value="{{ line.tax }}" oninput="calcProfit()">
+      <input type="number" name="tax" id="tax" step="0.01" class="form-control" value="{{ line.tax or 0 }}" oninput="calcProfit()">
     </div>
     <div class="col-md-2">
       <label>Sell Price</label>
-      <input type="number" name="sell_price" id="sell_price" step="0.01" class="form-control" value="{{ line.sell_price }}" oninput="calcProfit()" required>
+      <input type="number" name="sell_price" id="sell_price" step="0.01" class="form-control" value="{{ line.sell_price or 0 }}" oninput="calcProfit()" required>
     </div>
     <div class="col-md-2">
       <label>Profit</label>
-      <input type="text" name="profit" id="profit" class="form-control" value="{{ line.profit }}" readonly>
+      <input type="text" name="profit" id="profit" class="form-control" value="{{ line.profit or 0 }}" readonly>
     </div>
     <div class="col-md-2 pnr-box">
       <label id="pnrLabel">PNR</label>
       <input type="text" name="pnr" class="form-control" value="{{ line.pnr }}">
     </div>
-    <div class="col-md-2 iata-only-field" id="designatorBox">
+    <div class="col-md-2 iata-only-field">
       <label>Designator</label>
       <input type="text" name="designator" class="form-control" value="{{ line.designator }}">
     </div>
-    <div class="col-md-3 iata-only-field" id="ticketNoBox">
+    <div class="col-md-3 iata-only-field">
       <label>Ticket No</label>
-      <input type="text" name="ticket_no" class="form-control" maxlength="18" value="{{ line.ticket_no }}" pattern="\d{10,16}(-\d{1,2})?" title="10-16 digits, optionally followed by - and up to two digits">
+      <input type="text" name="ticket_no" class="form-control" maxlength="18" value="{{ line.ticket_no }}"
+             pattern="\d{10,16}(-\d{1,2})?" title="10-16 digits, optionally followed by - and up to two digits">
     </div>
     <div class="col-md-3">
       <label>Supplier</label>
@@ -71,38 +73,49 @@
 </form>
 {% endblock %}
 
+{% block scripts %}
 <script>
 function calcProfit() {
   const base = parseFloat(document.getElementById("base_fare").value) || 0;
   const tax = parseFloat(document.getElementById("tax").value) || 0;
   const sell = parseFloat(document.getElementById("sell_price").value) || 0;
   const type = document.getElementById("type").value;
-  let profit = 0;
-  if (type === "Air Ticket") {
-    profit = sell - (base + tax);
-  } else {
-    profit = sell - base;
-  }
+
+  let profit = type === "Air Ticket" ? sell - (base + tax) : sell - base;
   document.getElementById("profit").value = profit.toFixed(2);
 }
 
 function toggleTypeFields() {
   const type = document.getElementById("type").value;
   const subTypeSelect = document.getElementById("sub_type");
-  subTypeSelect.innerHTML = '<option value="">-- Select Sub Type --</option>';
-
   const pnrLabel = document.getElementById("pnrLabel");
-  document.querySelector('.tax-box').classList.add('d-none');
-  document.querySelector('.pax-box').classList.add('d-none');
+
+  // Reset sub types
+  subTypeSelect.innerHTML = '<option value="">-- Select Sub Type --</option>';
+  const taxBox = document.querySelector(".tax-box");
+  const paxBox = document.querySelector(".pax-box");
+
+  taxBox.classList.add("d-none");
+  paxBox.classList.add("d-none");
 
   if (type === "Air Ticket") {
     subTypeSelect.innerHTML += '<option value="IATA">IATA Airline</option><option value="Budget">Budget Airline</option>';
-    document.querySelector('.tax-box').classList.remove('d-none');
-    document.querySelector('.pax-box').classList.remove('d-none');
-    pnrLabel.textContent = 'PNR';
+    taxBox.classList.remove("d-none");
+    paxBox.classList.remove("d-none");
+    pnrLabel.textContent = "PNR";
   } else if (type === "Other") {
-    subTypeSelect.innerHTML += '<option value="Hotel">Hotel</option><option value="Packages">Packages</option><option value="Transfer">Transfer</option><option value="Visa">Visa</option><option value="Insurance">Insurance</option><option value="Other">Other</option>';
-    pnrLabel.textContent = 'Reference';
+    ['Hotel', 'Packages', 'Transfer', 'Visa', 'Insurance', 'Other'].forEach(opt => {
+      subTypeSelect.innerHTML += `<option value="${opt}">${opt}</option>`;
+    });
+    pnrLabel.textContent = "Reference";
+  }
+
+  // Set preselected subtype if present
+  const currentSubType = "{{ line.sub_type }}";
+  if (currentSubType) {
+    [...subTypeSelect.options].forEach(opt => {
+      if (opt.value === currentSubType) opt.selected = true;
+    });
   }
 
   toggleSubTypeFields();
@@ -111,17 +124,19 @@ function toggleTypeFields() {
 function toggleSubTypeFields() {
   const type = document.getElementById("type").value;
   const subType = document.getElementById("sub_type").value;
-  document.querySelectorAll('.iata-only-field').forEach(e => e.classList.add('d-none'));
+  const iataFields = document.querySelectorAll(".iata-only-field");
+  iataFields.forEach(el => el.classList.add("d-none"));
+
   if (type === "Air Ticket" && subType === "IATA") {
-    document.querySelectorAll('.iata-only-field').forEach(e => e.classList.remove('d-none'));
+    iataFields.forEach(el => el.classList.remove("d-none"));
   }
 }
 
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", function () {
   document.getElementById("type").addEventListener("change", toggleTypeFields);
   document.getElementById("sub_type").addEventListener("change", toggleSubTypeFields);
-  document.getElementById("sub_type").value = "{{ line.sub_type }}";
   toggleTypeFields();
   calcProfit();
 });
 </script>
+{% endblock %}
