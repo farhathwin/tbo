@@ -5,7 +5,8 @@
 <div class="mb-3">
   <p><strong>Customer:</strong> {{ invoice.customer.full_name or invoice.customer.business_name }}</p>
   <p><strong>Service Type:</strong> {{ invoice.service_type }}</p>
-  <p><strong>Date:</strong> {{ invoice.invoice_date.strftime('%Y-%m-%d') }}</p>
+  <p><strong>Invoice Date:</strong> {{ invoice.invoice_date.strftime('%Y-%m-%d') }}</p>
+  <p><strong>Transaction Date:</strong> {{ invoice.transaction_date.strftime('%Y-%m-%d') }}</p>
   <p><strong>Status:</strong> <span class="badge bg-info">{{ invoice.status }}</span></p>
   <p><strong>Total:</strong> {{ "{:,.2f}".format(invoice.total_amount) }}</p>
 </div>
