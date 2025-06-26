@@ -299,14 +299,20 @@ class Invoice(Base):
     status = Column(String, default='Draft')
     destination = Column(String(10))
     due_term = Column(Integer, default=0)
-
-
+    created_by_user = relationship(
+        "TenantUser",
+        primaryjoin="Invoice.created_by==TenantUser.id",
+        foreign_keys="Invoice.created_by",
+        viewonly=True,)
+    staff_id = Column(Integer, ForeignKey('users.id'))  # ✅ FIXED
+    staff = relationship("TenantUser", backref="invoices")  # ✅ FIXED
     created_by = Column(Integer)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     customer = relationship("Customer")
     lines = relationship("InvoiceLine", back_populates="invoice", cascade="all, delete-orphan")
     pax_details = relationship("PaxDetail", back_populates="invoice", cascade="all, delete-orphan")
+
 
 class InvoiceLine(Base):
     __tablename__ = 'invoice_lines'

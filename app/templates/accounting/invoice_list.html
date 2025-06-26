@@ -2,17 +2,13 @@
 {% block title %}Invoices{% endblock %}
 {% block content %}
 <h3>Create Invoice</h3>
-<form method="POST">
+<form method="POST" id="invoice-form">
   <div class="row g-3">
-    <div class="col-md-3">
+    <div class="col-md-4">
       <label>Customer</label>
-      <input type="text" id="customer-filter" class="form-control mb-2" placeholder="Search by name or phone">
-      <select name="customer_id" id="customer-select" class="form-select" required>
-        <option value="">-- Select --</option>
-        {% for cust in customers %}
-        <option value="{{ cust.id }}">{{ cust.full_name or cust.business_name }} - {{ cust.phone_number }}</option>
-        {% endfor %}
-      </select>
+      <input type="text" id="customer-search" class="form-control" placeholder="Type name or phone" autocomplete="off">
+      <input type="hidden" name="customer_id" id="customer_id">
+      <div id="customer-suggestions" class="list-group position-absolute w-100" style="z-index: 1000;"></div>
       <div class="form-text"><a href="{{ url_for('accounting_routes.customer_list') }}">Add New Customer</a></div>
     </div>
     <div class="col-md-3">
@@ -33,15 +29,23 @@
       <label>Invoice Date</label>
       <input type="date" name="invoice_date" class="form-control" value="{{ current_date or '' }}" required>
     </div>
-    <div class="col-md-2">
-      <label>Travel Consultant</label>
-      <input name="staff_email" list="staff-list" class="form-control" placeholder="Select consultant">
-      <datalist id="staff-list">
-        {% for s in staff_list %}
-        <option value="{{ s.email }}"></option>
-        {% endfor %}
+      <div class="col-md-3">
+        <label for="consultant">Travel Consultant</label>
+        <input 
+          id="consultant"
+          name="staff_email"
+          list="staff-list"
+          class="form-control"
+          placeholder="Start typing email"
+          {% if request.method == 'POST' %}
+            value="{{ request.form.get('staff_email') }}"
+          {% else %}
+            value="{{ session_user_email }}"
+          {% endif %}
+        >
       </datalist>
-    </div>
+      </div>
+
     <div class="col-md-2">
       <label>Destination</label>
       <input type="text" name="destination" id="destination" class="form-control" list="airport-options" placeholder="Airport code">
@@ -55,10 +59,15 @@
       <label>Currency</label>
       <input type="text" name="currency" class="form-control" value="LKR">
     </div>
+    <div class="col-md-3">
+      <label>Created Staff</label>
+      <input type="text" class="form-control" value="{{ session_user_email }}" readonly>
+    </div>
     <div class="col-md-2">
       <label>&nbsp;</label>
       <button type="submit" class="btn btn-primary w-100">➕ Create Invoice</button>
     </div>
+    
   </div>
 </form>
 
@@ -137,5 +146,67 @@ document.getElementById('customer-filter').addEventListener('input', function() 
 });
 </script>
 
-{% endblock %}
 
+<script id="customer-data" type="application/json">
+  {{ customers_json | tojson }}
+</script>
+
+<script>
+  const customers = JSON.parse(document.getElementById('customer-data').textContent);
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const input = document.getElementById('customer-search');
+  const hiddenInput = document.getElementById('customer_id');
+  const suggestions = document.getElementById('customer-suggestions');
+
+  input.addEventListener('input', function () {
+    const term = input.value.toLowerCase().trim();
+    suggestions.innerHTML = '';
+
+    if (term.length < 2) return;
+
+    const matches = customers.filter(c =>
+      (c.name && c.name.toLowerCase().includes(term)) ||
+      (c.phone && c.phone.toLowerCase().includes(term))
+    );
+
+    matches.forEach(c => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'list-group-item list-group-item-action';
+      item.textContent = `${c.name} - ${c.phone}`;
+      item.dataset.id = c.id;
+      item.addEventListener('click', () => {
+        input.value = `${c.name} - ${c.phone}`;
+        hiddenInput.value = c.id;
+        suggestions.innerHTML = '';
+      });
+      suggestions.appendChild(item);
+    });
+  });
+
+  // Hide suggestions if user clicks outside
+  document.addEventListener('click', function (e) {
+    if (!input.contains(e.target) && !suggestions.contains(e.target)) {
+      suggestions.innerHTML = '';
+    }
+  });
+});
+</script>
+<script>
+document.getElementById('invoice-form').addEventListener('submit', function (e) {
+  const customerId = document.getElementById('customer_id').value.trim();
+  const customerInput = document.getElementById('customer-search');
+
+  if (!customerId) {
+    e.preventDefault(); // Stop form submission
+    alert("❌ Please select a valid customer from the list.");
+    customerInput.focus();
+  }
+});
+</script>
+
+
+{% endblock %}

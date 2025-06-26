@@ -1625,17 +1625,42 @@ def invoice_list():
     company_id = session['company_id']
     user_id = session.get('user_id')
 
+    # Get the logged-in user's email (for default consultant selection)
+    session_user = tenant_session.query(TenantUser).filter_by(id=user_id).first()
+    session_user_email = session_user.email if session_user else ''
+
     if request.method == 'POST':
         customer_id = request.form.get('customer_id')
+
+        # ✅ Validate customer_id
+        if not customer_id or not customer_id.isdigit():
+            flash("❌ Invalid customer selected.", "danger")
+            return redirect(url_for('accounting_routes.invoice_list'))
+
+        # ✅ Check if customer exists
+        customer = tenant_session.query(Customer).filter_by(id=customer_id).first()
+        if not customer:
+            flash("❌ Selected customer does not exist.", "danger")
+            return redirect(url_for('accounting_routes.invoice_list'))
+
         service_type = request.form.get('service_type')
         invoice_date = request.form.get('invoice_date')
         transaction_date = date.today()
-        staff_email = request.form.get('staff_email')
+        staff_email = request.form.get('staff_email') or session_user_email
         destination = request.form.get('destination')
         due_term = request.form.get('due_term') or 0
         currency = request.form.get('currency') or 'LKR'
 
-        staff = tenant_session.query(TenantUser).filter_by(email=staff_email).first() if staff_email else None
+        # ✅ Validate staff_email (must be a known user in company)
+        staff = tenant_session.query(TenantUser).filter_by(
+            email=staff_email,
+            is_suspended=False,
+            company_id=company_id
+        ).first()
+
+        if not staff:
+            flash("❌ Invalid travel consultant selected.", "danger")
+            return redirect(url_for('accounting_routes.invoice_list'))
 
         invoice_number = generate_invoice_number(tenant_session)
         invoice = Invoice(
@@ -1646,10 +1671,10 @@ def invoice_list():
             customer_id=customer_id,
             service_type=service_type,
             currency=currency,
-            total_amount=0.00,  # updated after adding lines
+            total_amount=0.00,
             destination=destination,
             due_term=int(due_term),
-            staff_id=staff.id if staff else None,
+            staff_id=staff.id,
             created_by=user_id
         )
         tenant_session.add(invoice)
@@ -1657,16 +1682,35 @@ def invoice_list():
         flash("✅ Invoice created. You can now add line items.", "success")
         return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
 
+    # For GET requests
     customers = tenant_session.query(Customer).filter_by(is_active=True).all()
+    customers_json = [
+        {
+            "id": c.id,
+            "name": c.full_name or c.business_name,
+            "phone": c.phone_number
+        }
+        for c in customers
+    ]
+
+    
     staff_list = tenant_session.query(TenantUser).filter_by(is_suspended=False).all()
     invoices = tenant_session.query(Invoice).order_by(Invoice.created_at.desc()).all()
+
     return render_template(
         'accounting/invoice_list.html',
         invoices=invoices,
         customers=customers,
+        customers_json=customers_json,
         staff_list=staff_list,
         current_date=date.today().isoformat(),
+        session_user_email=session_user_email
     )
+
+
+
+
+
 
 
 @accounting_routes.route('/invoices/edit/<int:invoice_id>', methods=['GET'])
