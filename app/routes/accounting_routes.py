@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response, render_template_string, Response
 from datetime import datetime, date
-from app.models.models import FiscalYear,Account, AccountType, CompanyProfile ,JournalEntry, JournalLine, Customer, Supplier, CashBank, Invoice, InvoiceLine, PaxDetail, TenantUser
+from app.models.models import FiscalYear,Account, AccountType, CompanyProfile ,JournalEntry, JournalLine, Customer, Supplier, CashBank, Invoice, InvoiceLine, PaxDetail, TenantUser, Receipt
 from app.routes.register_routes import current_tenant_session
 from sqlalchemy import or_, and_, func
 from sqlalchemy.orm import joinedload
@@ -1690,6 +1690,15 @@ def generate_invoice_number(session):
         next_num = 1
     return f"I{next_num:06d}"
 
+def generate_receipt_number(session):
+    """Return next receipt number in the format R00001."""
+    last_receipt = session.query(Receipt).order_by(Receipt.id.desc()).first()
+    if last_receipt and last_receipt.reference and last_receipt.reference.startswith("R") and last_receipt.reference[1:].isdigit():
+        next_num = int(last_receipt.reference[1:]) + 1
+    else:
+        next_num = 1
+    return f"R{next_num:05d}"
+
 @accounting_routes.route('/invoices', methods=['GET', 'POST'])
 def invoice_list():
     if 'domain' not in session or 'company_id' not in session:
@@ -2207,10 +2216,12 @@ def customer_receipt():
 
                 fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=False).first()
 
+                receipt_number = generate_receipt_number(tenant_session)
+
                 journal_entry = JournalEntry(
                     company_id=company_id,
                     date=payment_date,
-                    reference=payment_ref or f"Receipt-{selected_customer.id}",
+                    reference=receipt_number,
                     narration=f"Receipt from {selected_customer.full_name or selected_customer.business_name}",
                     created_by=user_id,
                     fiscal_year_id=fiscal_year.id if fiscal_year else None,
@@ -2218,6 +2229,20 @@ def customer_receipt():
                 )
 
                 tenant_session.add(journal_entry)
+                tenant_session.flush()
+
+                receipt = Receipt(
+                    customer_id=selected_customer.id,
+                    receipt_date=payment_date,
+                    payment_method=payment_method,
+                    reference=receipt_number,
+                    notes=payment_ref,
+                    total_amount=total_payment,
+                    account_id=payment_account_id,
+                    journal_entry_id=journal_entry.id
+                )
+
+                tenant_session.add(receipt)
                 tenant_session.commit()
                 flash("✅ Receipt recorded successfully.", "success")
                 return redirect(url_for("accounting_routes.customer_receipt"))
@@ -2276,11 +2301,15 @@ def get_customer_dues(session, company_id, customer):
     ).all()
 
     for invoice in invoices:
-        paid = Decimal(sum([
-            Decimal(str(line.credit or 0))
-            for line in invoice.journal_lines
-            if line.account_id == customer.account_receivable_id
-        ]))
+        payment_lines = session.query(JournalLine).join(JournalEntry).filter(
+            JournalEntry.company_id == company_id,
+            JournalLine.account_id == customer.account_receivable_id,
+            JournalLine.partner_id == customer.id,
+            JournalLine.credit > 0,
+            JournalLine.narration.ilike(f"Payment for {invoice.invoice_number}%")
+        ).all()
+
+        paid = Decimal(sum([Decimal(str(line.credit or 0)) for line in payment_lines]))
         balance_due = Decimal(str(invoice.total_amount or 0)) - paid
 
         if balance_due > 0:
@@ -2293,8 +2322,7 @@ def get_customer_dues(session, company_id, customer):
                     "method": line.entry.reference,
                     "ref": line.entry.narration
                 }
-                for line in invoice.journal_lines
-                if line.credit and line.account_id == customer.account_receivable_id
+                for line in payment_lines
             ]
             dues.append(invoice)
 
@@ -2317,7 +2345,8 @@ def get_customer_dues(session, company_id, customer):
             JournalLine.account_id == customer.account_receivable_id,
             JournalLine.credit > 0,
             JournalEntry.date >= entry.date,
-            JournalEntry.reference != entry.reference
+            JournalEntry.reference != entry.reference,
+            JournalLine.narration.ilike("Payment for Opening Balance%")
         ).all()
 
         paid = sum([Decimal(line.credit or 0) for line in credit_lines])
