@@ -1,43 +1,44 @@
 {% extends 'base.html' %}
 {% block title %}Edit Invoice{% endblock %}
+{% set locked = invoice.status == 'Finalised' %}
 {% block content %}
 <h3>Edit Invoice #{{ invoice.invoice_number }}</h3>
 <form method="POST" class="mb-3">
   <div class="row g-2">
     <div class="col-md-3 position-relative">
       <label>Customer</label>
-      <input type="text" id="customer-search" class="form-control" placeholder="Type name or phone" autocomplete="off" value="{{ invoice.customer.full_name or invoice.customer.business_name }}">
-      <input type="hidden" name="customer_id" id="customer_id" value="{{ invoice.customer_id }}">
+      <input type="text" id="customer-search" class="form-control" placeholder="Type name or phone" autocomplete="off" value="{{ invoice.customer.full_name or invoice.customer.business_name }}" {{ 'disabled' if locked else '' }}>
+      <input type="hidden" name="customer_id" id="customer_id" value="{{ invoice.customer_id }}" {{ 'disabled' if locked else '' }}>
       <div id="customer-suggestions" class="list-group position-absolute w-100" style="z-index: 1000;"></div>
     </div>
     <div class="col-md-2">
       <label>Service Type</label>
-      <input type="text" name="service_type" class="form-control" value="{{ invoice.service_type }}">
+      <input type="text" name="service_type" class="form-control" value="{{ invoice.service_type }}" {{ 'disabled' if locked else '' }}>
     </div>
     <div class="col-md-2">
       <label>Invoice Date</label>
-      <input type="date" name="invoice_date" class="form-control" value="{{ invoice.invoice_date.isoformat() }}">
+      <input type="date" name="invoice_date" class="form-control" value="{{ invoice.invoice_date.isoformat() }}" {{ 'disabled' if locked else '' }}>
     </div>
     <div class="col-md-2 position-relative">
       <label for="consultant">Travel Consultant</label>
-      <input id="consultant" name="staff_email" class="form-control" placeholder="Start typing email" autocomplete="off" value="{{ invoice.staff.email if invoice.staff else '' }}">
+      <input id="consultant" name="staff_email" class="form-control" placeholder="Start typing email" autocomplete="off" value="{{ invoice.staff.email if invoice.staff else '' }}" {{ 'disabled' if locked else '' }}>
       <div id="staff-suggestions" class="list-group position-absolute w-100" style="z-index: 1000;"></div>
     </div>
     <div class="col-md-1">
       <label>Due Term</label>
-      <input type="number" name="due_term" class="form-control" min="0" value="{{ invoice.due_term }}">
+      <input type="number" name="due_term" class="form-control" min="0" value="{{ invoice.due_term }}" {{ 'disabled' if locked else '' }}>
     </div>
     <div class="col-md-1">
       <label>Currency</label>
-      <input type="text" name="currency" class="form-control" value="{{ invoice.currency }}">
+      <input type="text" name="currency" class="form-control" value="{{ invoice.currency }}" {{ 'disabled' if locked else '' }}>
     </div>
     <div class="col-md-2">
       <label>Destination</label>
-      <input type="text" name="destination" class="form-control" value="{{ invoice.destination or '' }}">
+      <input type="text" name="destination" class="form-control" value="{{ invoice.destination or '' }}" {{ 'disabled' if locked else '' }}>
     </div>
     <div class="col-md-1">
       <label>&nbsp;</label>
-      <button type="submit" class="btn btn-primary w-100">Update</button>
+      <button type="submit" class="btn btn-primary w-100" {{ 'disabled' if locked else '' }}>Update</button>
     </div>
   </div>
 </form>
@@ -49,6 +50,7 @@
 <hr>
 
 <h5>👤 Pax Details</h5>
+{% if not locked %}
 <form method="POST" action="{{ url_for('accounting_routes.add_pax_detail', invoice_id=invoice.id) }}">
   <div class="row g-2">
     <div class="col-md-2">
@@ -89,6 +91,7 @@
     </div>
   </div>
 </form>
+{% endif %}
 
 {% if invoice.pax_details %}
 <div class="mt-3">
@@ -123,6 +126,7 @@
 
 <hr>
 <h5>➕ Add Line Item</h5>
+{% if not locked %}
 <form method="POST" action="{{ url_for('accounting_routes.add_invoice_line', invoice_id=invoice.id) }}">
   <div class="row g-2 mb-2">
     <div class="col-md-2">
@@ -189,6 +193,7 @@
     </div>
   </div>
 </form>
+{% endif %}
 
 <hr>
 <h5>📦 Invoice Items</h5>
@@ -222,20 +227,29 @@
       <td>{{ line.designator }}{{ line.ticket_no }}</td>
       <td>{{ line.supplier.business_name if line.supplier else '-' }}</td>
       <td>
+        {% if not locked %}
         <a href="{{ url_for('accounting_routes.edit_invoice_line', line_id=line.id) }}" class="btn btn-sm btn-primary">Edit</a>
         <a href="{{ url_for('accounting_routes.delete_invoice_line', line_id=line.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this line item?')">Delete</a>
+        {% endif %}
       </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
-<form method="POST" action="{{ url_for('accounting_routes.save_invoice', invoice_id=invoice.id) }}">
-  <button type="submit" class="btn btn-primary">💾 Save</button>
-</form>
-<form method="POST" action="{{ url_for('accounting_routes.finalise_invoice', invoice_id=invoice.id) }}">
-  <button type="submit" class="btn btn-success">✔️ Convert to Invoice</button>
-</form>
-<a href="{{ url_for('accounting_routes.invoice_list') }}" class="btn btn-secondary mt-3">⬅ Back to Invoice List</a>
+<div class="mb-2">
+  <form method="POST" action="{{ url_for('accounting_routes.save_invoice', invoice_id=invoice.id) }}" class="d-inline-block me-2">
+    <button type="submit" class="btn btn-primary" {{ 'disabled' if locked else '' }}>💾 Save</button>
+  </form>
+  <form method="POST" action="{{ url_for('accounting_routes.finalise_invoice', invoice_id=invoice.id) }}" class="d-inline-block me-2">
+    <button type="submit" class="btn btn-success" {{ 'disabled' if locked else '' }}>✔️ Convert to Invoice</button>
+  </form>
+  <form method="POST" action="{{ url_for('accounting_routes.reverse_invoice', invoice_id=invoice.id) }}" class="d-inline-block me-2">
+    <button type="submit" class="btn btn-warning" {{ 'disabled' if not locked else '' }}>↩ Invoice Reversal</button>
+  </form>
+</div>
+<div class="mb-3">
+  <a href="{{ url_for('accounting_routes.invoice_list') }}" class="btn btn-secondary">⬅ Back to Invoice List</a>
+</div>
 
 <script id="customer-data" type="application/json">
   {{ customers_json | tojson }}
