@@ -2181,16 +2181,16 @@ def customer_receipt():
                 dues = get_customer_dues(tenant_session, company_id, selected_customer)
 
                 for due in dues:
-                    field_name = f"pay_invoice_{due['id']}"
+                    field_name = f"pay_invoice_{due.id}"
                     amount_str = request.form.get(field_name)
                     if amount_str:
                         amount = Decimal(amount_str or 0)
                         if amount > 0:
-                            pay_amount = min(amount, due['balance_due'])
+                            pay_amount = min(amount, due.balance_due)
                             lines.append(JournalLine(
                                 account_id=selected_customer.account_receivable_id,
                                 credit=pay_amount,
-                                narration=f"Payment for {due['invoice_number']}",
+                                narration=f"Payment for {due.invoice_number}",
                                 partner_id=selected_customer.id
                             ))
                             total_payment += pay_amount
@@ -2235,12 +2235,10 @@ def customer_receipt():
             selected_customer = None
 
     if selected_customer:
-        open_invoices = []
-
-
         dues = get_customer_dues(tenant_session, company_id, selected_customer)
+        open_invoices = dues
 
-        for invoice in dues:
+        for invoice in open_invoices:
             if hasattr(invoice, 'journal_lines'):
                 invoice.payment_history = [
                     {
@@ -2333,7 +2331,7 @@ def get_customer_dues(session, company_id, customer):
                 'total_amount': debit_line.debit,
                 'amount_paid': paid,
                 'balance_due': balance_due,
-                'is_virtual': True,
+                'is_ob_virtual': True,
                 'payment_history': [
                     {
                         "date": line.entry.date,
