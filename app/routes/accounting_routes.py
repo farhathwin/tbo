@@ -1820,11 +1820,25 @@ def edit_invoice(invoice_id):
         return redirect(url_for('accounting_routes.invoice_list'))
 
     if request.method == 'POST':
-        invoice.invoice_date = datetime.strptime(request.form.get('invoice_date'), '%Y-%m-%d').date()
+        invoice.invoice_date = datetime.strptime(
+            request.form.get('invoice_date'), '%Y-%m-%d'
+        ).date()
         invoice.service_type = request.form.get('service_type')
         invoice.destination = request.form.get('destination')
         invoice.due_term = int(request.form.get('due_term') or 0)
         invoice.currency = request.form.get('currency') or invoice.currency
+
+        customer_id = request.form.get('customer_id') or invoice.customer_id
+        if customer_id and str(customer_id).isdigit():
+            customer = tenant_session.query(Customer).filter_by(id=customer_id).first()
+            if customer:
+                invoice.customer_id = int(customer_id)
+            else:
+                flash("❌ Invalid customer selected.", "danger")
+                return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+        else:
+            flash("❌ Invalid customer selected.", "danger")
+            return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
 
         staff_email = request.form.get('staff_email')
         staff = tenant_session.query(TenantUser).filter_by(
@@ -1845,10 +1859,27 @@ def edit_invoice(invoice_id):
     # Fetch all active suppliers (you can later filter based on invoice.service_type if needed)
     suppliers = tenant_session.query(Supplier).filter_by(is_active=True).order_by(Supplier.business_name).all()
 
+    customers = tenant_session.query(Customer).filter_by(is_active=True).all()
+    customers_json = [
+        {
+            "id": c.id,
+            "name": c.full_name or c.business_name,
+            "phone": c.phone_number,
+        }
+        for c in customers
+    ]
+
+    staff_list = tenant_session.query(TenantUser).filter_by(
+        is_suspended=False, company_id=invoice.company_id
+    ).all()
+    staff_json = [{"email": s.email} for s in staff_list]
+
     return render_template(
         'accounting/invoice_edit.html',
         invoice=invoice,
-        suppliers=suppliers
+        suppliers=suppliers,
+        customers_json=customers_json,
+        staff_json=staff_json,
     )
 
 
