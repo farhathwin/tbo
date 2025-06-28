@@ -1783,7 +1783,10 @@ def invoice_list():
     ]
 
     
-    staff_list = tenant_session.query(TenantUser).filter_by(is_suspended=False).all()
+    staff_list = tenant_session.query(TenantUser).filter_by(
+        is_suspended=False, company_id=company_id
+    ).all()
+    staff_json = [{"email": s.email} for s in staff_list]
     invoices = tenant_session.query(Invoice).order_by(Invoice.created_at.desc()).all()
 
     return render_template(
@@ -1792,6 +1795,7 @@ def invoice_list():
         customers=customers,
         customers_json=customers_json,
         staff_list=staff_list,
+        staff_json=staff_json,
         current_date=date.today().isoformat(),
         session_user_email=session_user_email
     )
@@ -1802,7 +1806,7 @@ def invoice_list():
 
 
 
-@accounting_routes.route('/invoices/edit/<int:invoice_id>', methods=['GET'])
+@accounting_routes.route('/invoices/edit/<int:invoice_id>', methods=['GET', 'POST'])
 def edit_invoice(invoice_id):
     if 'domain' not in session:
         return redirect(url_for('register_routes.login'))
@@ -1814,6 +1818,29 @@ def edit_invoice(invoice_id):
     if not invoice:
         flash("❌ Invoice not found.", "danger")
         return redirect(url_for('accounting_routes.invoice_list'))
+
+    if request.method == 'POST':
+        invoice.invoice_date = datetime.strptime(request.form.get('invoice_date'), '%Y-%m-%d').date()
+        invoice.service_type = request.form.get('service_type')
+        invoice.destination = request.form.get('destination')
+        invoice.due_term = int(request.form.get('due_term') or 0)
+        invoice.currency = request.form.get('currency') or invoice.currency
+
+        staff_email = request.form.get('staff_email')
+        staff = tenant_session.query(TenantUser).filter_by(
+            email=staff_email,
+            is_suspended=False,
+            company_id=invoice.company_id
+        ).first()
+        if staff:
+            invoice.staff_id = staff.id
+        else:
+            flash("❌ Invalid travel consultant selected.", "danger")
+            return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
+        tenant_session.commit()
+        flash("✅ Invoice header updated", "success")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
 
     # Fetch all active suppliers (you can later filter based on invoice.service_type if needed)
     suppliers = tenant_session.query(Supplier).filter_by(is_active=True).order_by(Supplier.business_name).all()
