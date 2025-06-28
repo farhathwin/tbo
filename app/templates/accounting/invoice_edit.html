@@ -196,7 +196,6 @@
   <thead>
     <tr>
       <th>Passenger</th>
-      <th>Type</th>
       <th>Sub Type</th>
       <th>Base Fare</th>
       <th>Tax</th>
@@ -212,7 +211,6 @@
     {% for line in invoice.lines %}
     <tr>
       <td>{{ (line.pax.first_name ~ ' ' ~ line.pax.last_name) if line.pax else '-' }}</td>
-      <td>{{ line.type }}</td>
       <td>{{ line.sub_type }}</td>
       <td>{{ "{:,.2f}".format(line.base_fare or 0) }}</td>
       <td>{{ "{:,.2f}".format(line.tax or 0) }}</td>

@@ -79,12 +79,8 @@
       <th>Invoice #</th>
       <th>Customer</th>
       <th>Invoice Date</th>
-      <th>Transaction Date</th>
       <th>Service</th>
-      <th>Destination</th>
       <th>Travel Consultant</th>
-      <th>Created By</th>
-      <th>Due</th>
       <th>Total</th>
       <th>Status</th>
       <th>Actions</th>
@@ -96,12 +92,8 @@
       <td>{{ invoice.invoice_number }}</td>
       <td>{{ invoice.customer.full_name or invoice.customer.business_name }}</td>
       <td>{{ invoice.invoice_date.strftime('%Y-%m-%d') }}</td>
-      <td>{{ invoice.transaction_date.strftime('%Y-%m-%d') }}</td>
       <td>{{ invoice.service_type }}</td>
-      <td>{{ invoice.destination or '-' }}</td>
       <td>{{ invoice.staff.email if invoice.staff else '-' }}</td>
-      <td>{{ invoice.created_by_user.email if invoice.created_by_user else '-' }}</td>
-      <td>{{ invoice.due_term }}</td>
       <td>{{ "{:,.2f}".format(invoice.total_amount) }}</td>
       <td><span class="badge bg-info">{{ invoice.status }}</span></td>
       <td>
