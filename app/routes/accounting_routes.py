@@ -16,6 +16,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from decimal import Decimal
 import uuid
 
+from app.utils.email_utils import send_email
+from app import mail
+
 
 
 accounting_routes = Blueprint('accounting_routes', __name__)
@@ -360,6 +363,23 @@ def generate_journal_reference(session, company_id):
         number = 1
 
     return f"JO{number:06d}"
+
+
+def generate_allocation_reference(session):
+    """Return next allocation reference like CA0001."""
+    last_entry = (
+        session.query(JournalEntry)
+        .filter(JournalEntry.reference.like("CA%"))
+        .order_by(JournalEntry.id.desc())
+        .first()
+    )
+
+    if last_entry and last_entry.reference[2:].isdigit():
+        next_num = int(last_entry.reference[2:]) + 1
+    else:
+        next_num = 1
+
+    return f"CA{next_num:04d}"
 
 
 @accounting_routes.route('/journal-entry', methods=['GET', 'POST'])
@@ -2580,10 +2600,12 @@ def allocate_unallocated_deposit():
 
                 fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=False).first()
 
+                allocation_ref = generate_allocation_reference(tenant_session)
+
                 je = JournalEntry(
                     company_id=company_id,
                     date=allocation_date,
-                    reference=f'DEPALLOC-{uuid.uuid4().hex[:6].upper()}',
+                    reference=allocation_ref,
                     narration=f'Deposit allocation for {selected_customer.full_name or selected_customer.business_name}',
                     created_by=user_id,
                     fiscal_year_id=fiscal_year.id if fiscal_year else None,
@@ -2592,6 +2614,17 @@ def allocate_unallocated_deposit():
 
                 tenant_session.add(je)
                 tenant_session.commit()
+
+                super_user = (
+                    tenant_session.query(TenantUser)
+                    .filter(func.lower(TenantUser.role) == 'superxuser', TenantUser.company_id == company_id)
+                    .first()
+                )
+                if super_user:
+                    subject = f'Allocation {allocation_ref} created'
+                    body = f'A deposit allocation with reference {allocation_ref} was created.'
+                    send_email(mail, super_user.email, subject, body)
+
                 flash('✅ Deposit allocated successfully.', 'success')
                 return redirect(url_for('accounting_routes.allocate_unallocated_deposit'))
             except Exception as e:
