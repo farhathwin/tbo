@@ -128,16 +128,25 @@ function toggleTypeFields() {
   toggleSubTypeFields();
 }
 
-function toggleSubTypeFields() {
-  const type = document.getElementById("type").value;
-  const subType = document.getElementById("sub_type").value;
-  const iataFields = document.querySelectorAll(".iata-only-field");
-  iataFields.forEach(el => el.classList.add("d-none"));
+  function toggleSubTypeFields() {
+    const type = document.getElementById("type").value;
+    const subType = document.getElementById("sub_type").value;
+    const iataFields = document.querySelectorAll(".iata-only-field");
+    const designator = document.querySelector('input[name="designator"]');
+    const ticketNo = document.querySelector('input[name="ticket_no"]');
+    iataFields.forEach(el => el.classList.add("d-none"));
+    designator.disabled = true;
+    ticketNo.disabled = true;
 
-  if (type === "Air Ticket" && subType === "IATA") {
-    iataFields.forEach(el => el.classList.remove("d-none"));
+    if (type === "Air Ticket" && subType === "IATA") {
+      iataFields.forEach(el => el.classList.remove("d-none"));
+      designator.disabled = false;
+      ticketNo.disabled = false;
+    } else {
+      designator.value = "";
+      ticketNo.value = "";
+    }
   }
-}
 
 document.addEventListener("DOMContentLoaded", function () {
   document.getElementById("type").addEventListener("change", toggleTypeFields);
