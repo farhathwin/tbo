@@ -379,3 +379,6 @@ class Receipt(Base):
     account_id = Column(Integer, ForeignKey("accounts.id"))  # deposit to
     journal_entry_id = Column(Integer, ForeignKey("journal_entries.id"))
 
+    customer = relationship("Customer")
+    journal_entry = relationship("JournalEntry")
+

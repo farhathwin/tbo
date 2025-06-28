@@ -2855,3 +2855,122 @@ def get_customer_deposit_balance(session, company_id, customer):
     ).scalar() or 0
 
     return Decimal(str(credit_total)) - Decimal(str(debit_total))
+
+
+@accounting_routes.route('/receipts', methods=['GET'])
+def receipt_list():
+    """List customer receipts with option to reverse."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    receipts = (
+        tenant_session.query(Receipt)
+        .join(Customer, Receipt.customer_id == Customer.id)
+        .join(JournalEntry, Receipt.journal_entry_id == JournalEntry.id)
+        .filter(Customer.company_id == company_id)
+        .order_by(Receipt.id.desc())
+        .all()
+    )
+
+    return render_template('accounting/receipt_list.html', receipts=receipts)
+
+
+@accounting_routes.route('/receipts/reverse/<int:receipt_id>', methods=['POST'])
+def reverse_receipt(receipt_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session.get('user_id')
+
+    receipt = tenant_session.query(Receipt).join(Customer).filter(
+        Receipt.id == receipt_id,
+        Customer.company_id == company_id,
+    ).first()
+
+    if not receipt:
+        flash('❌ Receipt not found.', 'danger')
+        return redirect(url_for('accounting_routes.receipt_list'))
+
+    entry = tenant_session.query(JournalEntry).filter_by(
+        id=receipt.journal_entry_id,
+        company_id=company_id
+    ).first()
+
+    if not entry:
+        flash('❌ Journal entry not found.', 'danger')
+        return redirect(url_for('accounting_routes.receipt_list'))
+
+    fiscal_year = tenant_session.query(FiscalYear).filter(
+        FiscalYear.company_id == company_id,
+        FiscalYear.is_closed == True
+    ).first()
+
+    if entry.reversal_of or entry.reversed_by:
+        flash('⚠️ This receipt has already been reversed.', 'warning')
+        return redirect(url_for('accounting_routes.receipt_list'))
+
+    reverse_entry = JournalEntry(
+        company_id=company_id,
+        date=datetime.today().date(),
+        reference=f"REV-{entry.reference}",
+        narration=f"Reversal of Receipt {entry.reference}",
+        created_by=user_id,
+        fiscal_year_id=fiscal_year.id if fiscal_year else None
+    )
+    tenant_session.add(reverse_entry)
+    tenant_session.flush()
+
+    entry.reversed_entry_id = reverse_entry.id
+
+    for line in entry.lines:
+        tenant_session.add(JournalLine(
+            entry_id=reverse_entry.id,
+            account_id=line.account_id,
+            debit=line.credit,
+            credit=line.debit,
+            narration=f"Reversal: {line.narration}",
+            partner_id=line.partner_id,
+        ))
+
+    tenant_session.commit()
+    flash('✅ Receipt reversed successfully.', 'success')
+    return redirect(url_for('accounting_routes.receipt_list'))
+
+
+@accounting_routes.route('/allocations', methods=['GET'])
+def allocation_list():
+    """List customer deposit allocations with option to reverse."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    allocations = (
+        tenant_session.query(JournalEntry)
+        .filter(
+            JournalEntry.company_id == company_id,
+            JournalEntry.reference.like('CA%')
+        )
+        .order_by(JournalEntry.id.desc())
+        .all()
+    )
+
+    alloc_data = []
+    for entry in allocations:
+        cust_name = '-'
+        amount = sum([line.credit or 0 for line in entry.lines])
+        if entry.lines:
+            partner_id = entry.lines[0].partner_id
+            if partner_id:
+                cust = tenant_session.query(Customer).filter_by(id=partner_id).first()
+                if cust:
+                    cust_name = cust.full_name or cust.business_name or '-'
+        alloc_data.append({'entry': entry, 'customer': cust_name, 'amount': amount})
+
+    return render_template('accounting/allocation_list.html', allocations=alloc_data)
