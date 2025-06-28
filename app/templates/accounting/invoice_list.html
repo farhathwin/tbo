@@ -29,22 +29,22 @@
       <label>Invoice Date</label>
       <input type="date" name="invoice_date" class="form-control" value="{{ current_date or '' }}" required>
     </div>
-      <div class="col-md-3">
-        <label for="consultant">Travel Consultant</label>
-        <input 
-          id="consultant"
-          name="staff_email"
-          list="staff-list"
-          class="form-control"
-          placeholder="Start typing email"
-          {% if request.method == 'POST' %}
-            value="{{ request.form.get('staff_email') }}"
-          {% else %}
-            value="{{ session_user_email }}"
-          {% endif %}
-        >
-      </datalist>
-      </div>
+    <div class="col-md-3 position-relative">
+      <label for="consultant">Travel Consultant</label>
+      <input
+        id="consultant"
+        name="staff_email"
+        class="form-control"
+        placeholder="Start typing email"
+        autocomplete="off"
+        {% if request.method == 'POST' %}
+          value="{{ request.form.get('staff_email') }}"
+        {% else %}
+          value="{{ session_user_email }}"
+        {% endif %}
+      >
+      <div id="staff-suggestions" class="list-group position-absolute w-100" style="z-index: 1000;"></div>
+    </div>
 
     <div class="col-md-2">
       <label>Destination</label>
@@ -53,7 +53,7 @@
     </div>
     <div class="col-md-2">
       <label>Due Term</label>
-      <input type="number" name="due_term" class="form-control" min="0">
+      <input type="number" name="due_term" class="form-control" min="0" value="0">
     </div>
     <div class="col-md-2">
       <label>Currency</label>
@@ -151,8 +151,16 @@ document.getElementById('customer-filter').addEventListener('input', function() 
   {{ customers_json | tojson }}
 </script>
 
+<script id="staff-data" type="application/json">
+  {{ staff_json | tojson }}
+</script>
+
 <script>
   const customers = JSON.parse(document.getElementById('customer-data').textContent);
+</script>
+
+<script>
+  const staff = JSON.parse(document.getElementById('staff-data').textContent);
 </script>
 
 <script>
@@ -191,6 +199,38 @@ document.addEventListener("DOMContentLoaded", function () {
   document.addEventListener('click', function (e) {
     if (!input.contains(e.target) && !suggestions.contains(e.target)) {
       suggestions.innerHTML = '';
+    }
+  });
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+  const staffInput = document.getElementById('consultant');
+  const staffSuggestions = document.getElementById('staff-suggestions');
+
+  staffInput.addEventListener('input', function () {
+    const term = staffInput.value.toLowerCase().trim();
+    staffSuggestions.innerHTML = '';
+
+    if (term.length < 2) return;
+
+    const matches = staff.filter(s => s.email.toLowerCase().includes(term));
+
+    matches.forEach(s => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'list-group-item list-group-item-action';
+      item.textContent = s.email;
+      item.addEventListener('click', () => {
+        staffInput.value = s.email;
+        staffSuggestions.innerHTML = '';
+      });
+      staffSuggestions.appendChild(item);
+    });
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!staffInput.contains(e.target) && !staffSuggestions.contains(e.target)) {
+      staffSuggestions.innerHTML = '';
     }
   });
 });
