@@ -1959,6 +1959,31 @@ def add_invoice_line(invoice_id):
         ticket_no = request.form.get('ticket_no') if sub_type == 'IATA' else None
         supplier_id = request.form.get('supplier_id') or None
 
+        # Check for duplicate ticket number within the tenant
+        if ticket_no:
+            existing_line = (
+                tenant_session.query(InvoiceLine)
+                .join(Invoice)
+                .filter(
+                    InvoiceLine.ticket_no == ticket_no,
+                    Invoice.company_id == invoice.company_id,
+                )
+                .first()
+            )
+            if existing_line:
+                link = url_for(
+                    'accounting_routes.edit_invoice',
+                    invoice_id=existing_line.invoice_id,
+                )
+                flash(
+                    Markup(
+                        f"❌ Ticket number already used on invoice <a href='{link}'>"
+                        f"{existing_line.invoice.invoice_number}</a>."
+                    ),
+                    "danger",
+                )
+                return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
         line = InvoiceLine(
             invoice_id=invoice.id,
             type=type,
@@ -2021,7 +2046,34 @@ def edit_invoice_line(line_id):
             line.profit = line.sell_price - (line.base_fare + line.tax) if line.type == 'Air Ticket' else line.sell_price - line.base_fare
             line.pnr = request.form.get('pnr')
             line.designator = request.form.get('designator') if line.sub_type == 'IATA' else None
-            line.ticket_no = request.form.get('ticket_no') if line.sub_type == 'IATA' else None
+            new_ticket_no = request.form.get('ticket_no') if line.sub_type == 'IATA' else None
+
+            if new_ticket_no:
+                existing_line = (
+                    tenant_session.query(InvoiceLine)
+                    .join(Invoice)
+                    .filter(
+                        InvoiceLine.ticket_no == new_ticket_no,
+                        Invoice.company_id == line.invoice.company_id,
+                        InvoiceLine.id != line.id,
+                    )
+                    .first()
+                )
+                if existing_line:
+                    link = url_for(
+                        'accounting_routes.edit_invoice',
+                        invoice_id=existing_line.invoice_id,
+                    )
+                    flash(
+                        Markup(
+                            f"❌ Ticket number already used on invoice <a href='{link}'>"
+                            f"{existing_line.invoice.invoice_number}</a>."
+                        ),
+                        "danger",
+                    )
+                    return redirect(url_for('accounting_routes.edit_invoice_line', line_id=line.id))
+
+            line.ticket_no = new_ticket_no
             line.supplier_id = int(request.form.get('supplier_id')) if request.form.get('supplier_id') else None
 
             tenant_session.commit()
