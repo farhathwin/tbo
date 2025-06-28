@@ -2273,6 +2273,21 @@ def reverse_invoice(invoice_id):
         FiscalYear.is_closed == True
     ).first()
 
+    customer = tenant_session.query(Customer).filter_by(id=invoice.customer_id).first()
+    deposit_account = tenant_session.query(Account).filter_by(company_id=company_id, account_code='2010').first()
+
+    total_paid = 0
+    if customer and deposit_account and customer.account_receivable_id:
+        payment_lines = tenant_session.query(JournalLine).join(JournalEntry).filter(
+            JournalEntry.company_id == company_id,
+            JournalLine.account_id == customer.account_receivable_id,
+            JournalLine.partner_id == customer.id,
+            JournalLine.credit > 0,
+            JournalLine.narration.ilike(f"%{invoice.invoice_number}%")
+        ).all()
+
+        total_paid = sum(line.credit or 0 for line in payment_lines)
+
     if entry and not entry.reversed_entry_id:
         reverse_entry = JournalEntry(
             company_id=company_id,
@@ -2296,46 +2311,32 @@ def reverse_invoice(invoice_id):
                 partner_id=line.partner_id
             ))
 
-    customer = tenant_session.query(Customer).filter_by(id=invoice.customer_id).first()
-    deposit_account = tenant_session.query(Account).filter_by(company_id=company_id, account_code='2010').first()
+    if total_paid > 0 and customer and deposit_account and customer.account_receivable_id:
+        realloc_entry = JournalEntry(
+            company_id=company_id,
+            date=date.today(),
+            reference=f"REV-ALLOC-{invoice.invoice_number}",
+            narration=f"Reallocate payment for {invoice.invoice_number}",
+            created_by=user_id,
+            fiscal_year_id=fiscal_year.id if fiscal_year else None
+        )
+        tenant_session.add(realloc_entry)
+        tenant_session.flush()
 
-    if customer and deposit_account and customer.account_receivable_id:
-        payment_lines = tenant_session.query(JournalLine).join(JournalEntry).filter(
-            JournalEntry.company_id == company_id,
-            JournalLine.account_id == customer.account_receivable_id,
-            JournalLine.partner_id == customer.id,
-            JournalLine.credit > 0,
-            JournalLine.narration.ilike(f"%{invoice.invoice_number}%")
-        ).all()
-
-        total_paid = sum(line.credit or 0 for line in payment_lines)
-
-        if total_paid > 0:
-            realloc_entry = JournalEntry(
-                company_id=company_id,
-                date=date.today(),
-                reference=f"REV-ALLOC-{invoice.invoice_number}",
-                narration=f"Reallocate payment for {invoice.invoice_number}",
-                created_by=user_id,
-                fiscal_year_id=fiscal_year.id if fiscal_year else None
-            )
-            tenant_session.add(realloc_entry)
-            tenant_session.flush()
-
-            tenant_session.add(JournalLine(
-                entry_id=realloc_entry.id,
-                account_id=customer.account_receivable_id,
-                debit=total_paid,
-                narration=f"Reverse payment for {invoice.invoice_number}",
-                partner_id=customer.id
-            ))
-            tenant_session.add(JournalLine(
-                entry_id=realloc_entry.id,
-                account_id=deposit_account.id,
-                credit=total_paid,
-                narration="Unallocated Deposit",
-                partner_id=customer.id
-            ))
+        tenant_session.add(JournalLine(
+            entry_id=realloc_entry.id,
+            account_id=customer.account_receivable_id,
+            debit=total_paid,
+            narration=f"Reverse payment for {invoice.invoice_number}",
+            partner_id=customer.id
+        ))
+        tenant_session.add(JournalLine(
+            entry_id=realloc_entry.id,
+            account_id=deposit_account.id,
+            credit=total_paid,
+            narration="Unallocated Deposit",
+            partner_id=customer.id
+        ))
 
     invoice.status = 'Draft'
     tenant_session.commit()
