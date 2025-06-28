@@ -2204,15 +2204,31 @@ def customer_receipt():
                             ))
                             total_payment += pay_amount
 
-                if total_payment <= 0:
+                unallocated_amount = total_received - total_payment
+
+                if total_payment <= 0 and unallocated_amount <= 0:
                     flash("❌ No payment amount entered.", "danger")
                     return redirect(request.url)
 
+                # Bank/Cash debit for total received
                 lines.append(JournalLine(
                     account_id=payment_account_id,
-                    debit=total_payment,
+                    debit=total_received,
                     narration=f"Customer Receipt via {payment_method} - {payment_ref}"
                 ))
+
+                # Credit Unallocated Deposit if any remaining amount
+                if unallocated_amount > 0:
+                    unalloc_acc = tenant_session.query(Account).filter_by(company_id=company_id, account_code='2010').first()
+                    if not unalloc_acc:
+                        flash("❌ Unallocated Deposit account not found.", "danger")
+                        return redirect(request.url)
+                    lines.append(JournalLine(
+                        account_id=unalloc_acc.id,
+                        credit=unallocated_amount,
+                        narration="Unallocated Deposit",
+                        partner_id=selected_customer.id
+                    ))
 
                 fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=False).first()
 
@@ -2237,7 +2253,7 @@ def customer_receipt():
                     payment_method=payment_method,
                     reference=receipt_number,
                     notes=payment_ref,
-                    total_amount=total_payment,
+                    total_amount=total_received,
                     account_id=payment_account_id,
                     journal_entry_id=journal_entry.id
                 )
@@ -2286,6 +2302,110 @@ def customer_receipt():
         selected_customer=selected_customer,
         open_invoices=open_invoices,
         cash_bank_accounts=deposit_options,
+        current_date=date.today()
+    )
+
+
+@accounting_routes.route('/receipts/allocate', methods=['GET', 'POST'])
+def allocate_unallocated_deposit():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session.get('user_id')
+
+    customers = tenant_session.query(Customer).filter_by(is_active=True).all()
+    selected_customer = None
+    open_invoices = []
+    deposit_balance = Decimal('0.00')
+
+    if request.method == 'POST':
+        if 'select_customer' in request.form:
+            customer_id = int(request.form.get('customer_id'))
+            selected_customer = tenant_session.query(Customer).filter_by(id=customer_id, company_id=company_id).first()
+        elif 'submit_allocation' in request.form:
+            try:
+                customer_id = int(request.form.get('customer_id'))
+                selected_customer = tenant_session.query(Customer).filter_by(id=customer_id, company_id=company_id).first()
+
+                allocation_date = datetime.strptime(request.form.get('allocation_date'), '%Y-%m-%d').date()
+
+                open_invoices = get_customer_dues(tenant_session, company_id, selected_customer)
+                deposit_balance = get_customer_deposit_balance(tenant_session, company_id, selected_customer)
+                lines = []
+                total_alloc = Decimal('0.00')
+
+                for inv in open_invoices:
+                    field_name = f"pay_invoice_{inv.id}"
+                    amount_str = request.form.get(field_name)
+                    if amount_str:
+                        amount = Decimal(amount_str or 0)
+                        if amount > 0:
+                            alloc_amt = min(amount, inv.balance_due)
+                            lines.append(JournalLine(
+                                account_id=selected_customer.account_receivable_id,
+                                credit=alloc_amt,
+                                narration=f"Deposit Allocation for {inv.invoice_number}",
+                                partner_id=selected_customer.id
+                            ))
+                            total_alloc += alloc_amt
+
+                if total_alloc <= 0:
+                    flash('❌ No allocation amount entered.', 'danger')
+                    return redirect(request.url)
+
+                if total_alloc > deposit_balance:
+                    flash('❌ Allocation exceeds available deposit.', 'danger')
+                    return redirect(request.url)
+
+                deposit_account = tenant_session.query(Account).filter_by(company_id=company_id, account_code='2010').first()
+
+                lines.append(JournalLine(
+                    account_id=deposit_account.id,
+                    debit=total_alloc,
+                    narration='Deposit Allocation',
+                    partner_id=selected_customer.id
+                ))
+
+                fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=False).first()
+
+                je = JournalEntry(
+                    company_id=company_id,
+                    date=allocation_date,
+                    reference=f'DEPALLOC-{uuid.uuid4().hex[:6].upper()}',
+                    narration=f'Deposit allocation for {selected_customer.full_name or selected_customer.business_name}',
+                    created_by=user_id,
+                    fiscal_year_id=fiscal_year.id if fiscal_year else None,
+                    lines=lines
+                )
+
+                tenant_session.add(je)
+                tenant_session.commit()
+                flash('✅ Deposit allocated successfully.', 'success')
+                return redirect(url_for('accounting_routes.allocate_unallocated_deposit'))
+            except Exception as e:
+                tenant_session.rollback()
+                flash(f'❌ Error: {str(e)}', 'danger')
+                return redirect(request.url)
+
+    if request.method == 'POST' and 'customer_id' in request.form and not selected_customer:
+        try:
+            customer_id = int(request.form.get('customer_id'))
+            selected_customer = tenant_session.query(Customer).filter_by(id=customer_id, company_id=company_id).first()
+        except:
+            selected_customer = None
+
+    if selected_customer:
+        open_invoices = get_customer_dues(tenant_session, company_id, selected_customer)
+        deposit_balance = get_customer_deposit_balance(tenant_session, company_id, selected_customer)
+
+    return render_template(
+        'accounting/allocate_deposit.html',
+        customers=customers,
+        selected_customer=selected_customer,
+        open_invoices=open_invoices,
+        deposit_balance=deposit_balance,
         current_date=date.today()
     )
 
@@ -2373,3 +2493,24 @@ def get_customer_dues(session, company_id, customer):
             }))
 
     return dues
+
+
+def get_customer_deposit_balance(session, company_id, customer):
+    from decimal import Decimal
+    deposit_account = session.query(Account).filter_by(company_id=company_id, account_code='2010').first()
+    if not deposit_account:
+        return Decimal('0.00')
+
+    credit_total = session.query(func.coalesce(func.sum(JournalLine.credit), 0)).join(JournalEntry).filter(
+        JournalEntry.company_id == company_id,
+        JournalLine.account_id == deposit_account.id,
+        JournalLine.partner_id == customer.id
+    ).scalar() or 0
+
+    debit_total = session.query(func.coalesce(func.sum(JournalLine.debit), 0)).join(JournalEntry).filter(
+        JournalEntry.company_id == company_id,
+        JournalLine.account_id == deposit_account.id,
+        JournalLine.partner_id == customer.id
+    ).scalar() or 0
+
+    return Decimal(str(credit_total)) - Decimal(str(debit_total))
