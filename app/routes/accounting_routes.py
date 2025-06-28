@@ -550,7 +550,7 @@ def journal_list():
     total_entries = query.count()
     total_pages = ceil(total_entries / per_page)
 
-    journal_entries = query.order_by(JournalEntry.date.desc()).offset(offset).limit(per_page).all()
+    journal_entries = query.order_by(JournalEntry.id.desc()).offset(offset).limit(per_page).all()
 
     # Prepare query params without page for pagination links
     query_params = request.args.to_dict(flat=True)
