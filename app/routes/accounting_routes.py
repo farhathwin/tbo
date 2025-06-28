@@ -909,6 +909,69 @@ def financial_reports():
     return render_template('accounting/financial_reports.html')
 
 
+@accounting_routes.route('/customer-outstanding', methods=['GET'])
+def customer_outstanding():
+    """Standard customer outstanding report with optional filters."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    customers = tenant_session.query(Customer).filter_by(company_id=company_id).all()
+
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    customer_id = request.args.get('customer_id', type=int)
+    service_type = request.args.get('service_type')
+
+    start_date = None
+    end_date = None
+    if start_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            start_date = None
+    if end_date_str:
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            end_date = None
+
+    report_rows = []
+    for cust in customers:
+        if customer_id and cust.id != customer_id:
+            continue
+        dues = get_customer_dues(
+            tenant_session,
+            company_id,
+            cust,
+            start_date=start_date,
+            end_date=end_date,
+            service_type=service_type,
+        )
+        for inv in dues:
+            report_rows.append({
+                'customer_name': cust.full_name or cust.business_name,
+                'invoice_number': inv.invoice_number,
+                'invoice_date': inv.invoice_date,
+                'service_type': getattr(inv, 'service_type', ''),
+                'total_amount': inv.total_amount,
+                'amount_paid': getattr(inv, 'amount_paid', 0),
+                'balance_due': getattr(inv, 'balance_due', 0),
+            })
+
+    return render_template(
+        'accounting/customer_outstanding.html',
+        customers=customers,
+        report_rows=report_rows,
+        selected_customer_id=customer_id,
+        start_date=start_date_str or '',
+        end_date=end_date_str or '',
+        service_type=service_type or ''
+    )
+
+
 @accounting_routes.route('/customers', methods=['GET', 'POST'])
 def customer_list():
     if 'domain' not in session or 'company_id' not in session:
@@ -2730,16 +2793,30 @@ def allocate_unallocated_deposit():
         current_date=date.today()
     )
 
-def get_customer_dues(session, company_id, customer):
+def get_customer_dues(session, company_id, customer, start_date=None, end_date=None, service_type=None):
+    """Return list of invoices with outstanding balance for a customer.
+
+    Optional filters can limit by invoice date range and service type.
+    Existing callers continue to work as the additional parameters are
+    optional.
+    """
     from decimal import Decimal
     dues = []
 
-    # ✅ Get Finalised Invoices with balance
-    invoices = session.query(Invoice).filter_by(
+    # ✅ Get Finalised Invoices with optional filters
+    invoices_query = session.query(Invoice).filter_by(
         customer_id=customer.id,
         company_id=company_id,
         status='Finalised'
-    ).all()
+    )
+    if start_date:
+        invoices_query = invoices_query.filter(Invoice.invoice_date >= start_date)
+    if end_date:
+        invoices_query = invoices_query.filter(Invoice.invoice_date <= end_date)
+    if service_type:
+        invoices_query = invoices_query.filter(Invoice.service_type == service_type)
+
+    invoices = invoices_query.all()
 
     for invoice in invoices:
         payment_lines = (
