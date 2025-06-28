@@ -29,9 +29,12 @@
       </td>
       <td>
         {% if not r.journal_entry.reversed_by %}
-        <form method="POST" action="{{ url_for('accounting_routes.reverse_receipt', receipt_id=r.id) }}">
-          <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure to reverse this receipt?')">Reverse</button>
-        </form>
+        <div class="d-flex gap-1">
+          <a href="{{ url_for('accounting_routes.view_receipt', receipt_id=r.id) }}" class="btn btn-primary btn-sm">View</a>
+          <form method="POST" action="{{ url_for('accounting_routes.reverse_receipt', receipt_id=r.id) }}">
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure to reverse this receipt?')">Reverse</button>
+          </form>
+        </div>
         {% else %}
         <button class="btn btn-secondary btn-sm" disabled>Reversed</button>
         {% endif %}
