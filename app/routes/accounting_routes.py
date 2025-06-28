@@ -2631,22 +2631,36 @@ def get_customer_dues(session, company_id, customer):
     ).all()
 
     for invoice in invoices:
-        payment_lines = session.query(JournalLine).join(JournalEntry).filter(
-            JournalEntry.company_id == company_id,
-            JournalLine.account_id == customer.account_receivable_id,
-            JournalLine.partner_id == customer.id,
-            JournalLine.credit > 0,
-            or_(
-                JournalLine.narration.ilike(
-                    f"Payment for {invoice.invoice_number}%"
+        payment_lines = (
+            session.query(JournalLine)
+            .join(JournalEntry)
+            .filter(
+                JournalEntry.company_id == company_id,
+                JournalLine.account_id == customer.account_receivable_id,
+                JournalLine.partner_id == customer.id,
+                or_(
+                    JournalLine.narration.ilike(
+                        f"Payment for {invoice.invoice_number}%"
+                    ),
+                    JournalLine.narration.ilike(
+                        f"Deposit Allocation for {invoice.invoice_number}%"
+                    ),
+                    JournalLine.narration.ilike(
+                        f"Reverse payment for {invoice.invoice_number}%"
+                    ),
                 ),
-                JournalLine.narration.ilike(
-                    f"Deposit Allocation for {invoice.invoice_number}%"
-                ),
-            ),
-        ).all()
+            )
+            .filter(
+                or_(JournalEntry.reversed_entry_id.is_(None), JournalEntry.reversed_entry_id == 0)
+            )
+            .all()
+        )
 
-        paid = Decimal(sum([Decimal(str(line.credit or 0)) for line in payment_lines]))
+        paid = Decimal(
+            sum(
+                [Decimal(str(line.credit or 0)) - Decimal(str(line.debit or 0)) for line in payment_lines]
+            )
+        )
         balance_due = Decimal(str(invoice.total_amount or 0)) - paid
 
         if balance_due > 0:
