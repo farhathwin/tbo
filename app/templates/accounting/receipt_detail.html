@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Receipt {{ receipt.reference }}{% endblock %}
+{% block content %}
+<div class="container my-4" id="receipt-area">
+  <div class="text-center">
+    <h4>{{ company.trading_name or company.company_name }}</h4>
+    <p class="mb-0">{{ company.address_line_1 }} {{ company.address_line_2 }} {{ company.city }}</p>
+    <p>☎ {{ company.phone }}</p>
+    <h5 class="mt-3">Customer Receipt</h5>
+  </div>
+  <hr>
+  <p><strong>Receipt No:</strong> {{ receipt.reference }}</p>
+  <p><strong>Date:</strong> {{ receipt.receipt_date }}</p>
+  <p><strong>Customer:</strong> {{ receipt.customer.full_name or receipt.customer.business_name }}</p>
+  <p><strong>Payment Method:</strong> {{ receipt.payment_method }}{% if receipt.notes %} ({{ receipt.notes }}){% endif %}</p>
+  <p><strong>Total Received:</strong> {{ "{:,.2f}".format(receipt.total_amount) }}</p>
+  <div class="mt-4">
+    <a href="{{ url_for('accounting_routes.receipt_pdf', receipt_id=receipt.id) }}" class="btn btn-primary btn-sm">Download PDF</a>
+    <button onclick="window.print()" class="btn btn-secondary btn-sm">Print</button>
+    <a href="{{ url_for('accounting_routes.receipt_list') }}" class="btn btn-outline-secondary btn-sm">Back</a>
+  </div>
+</div>
+{% endblock %}

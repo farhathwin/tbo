@@ -2974,3 +2974,76 @@ def allocation_list():
         alloc_data.append({'entry': entry, 'customer': cust_name, 'amount': amount})
 
     return render_template('accounting/allocation_list.html', allocations=alloc_data)
+
+
+@accounting_routes.route('/receipts/view/<int:receipt_id>')
+def view_receipt(receipt_id):
+    """Display a single receipt with print and PDF options."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    receipt = (
+        tenant_session.query(Receipt)
+        .join(Customer, Receipt.customer_id == Customer.id)
+        .join(JournalEntry, Receipt.journal_entry_id == JournalEntry.id)
+        .options(
+            joinedload(Receipt.customer),
+            joinedload(Receipt.journal_entry).joinedload(JournalEntry.lines).joinedload(JournalLine.account),
+        )
+        .filter(Receipt.id == receipt_id, Customer.company_id == company_id)
+        .first()
+    )
+
+    if not receipt:
+        flash('❌ Receipt not found.', 'danger')
+        return redirect(url_for('accounting_routes.receipt_list'))
+
+    company = tenant_session.query(CompanyProfile).filter_by(company_id=company_id).first()
+
+    return render_template('accounting/receipt_detail.html', receipt=receipt, company=company)
+
+
+@accounting_routes.route('/receipts/pdf/<int:receipt_id>')
+def receipt_pdf(receipt_id):
+    """Generate a PDF for a single receipt."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    receipt = (
+        tenant_session.query(Receipt)
+        .join(Customer, Receipt.customer_id == Customer.id)
+        .join(JournalEntry, Receipt.journal_entry_id == JournalEntry.id)
+        .options(
+            joinedload(Receipt.customer),
+            joinedload(Receipt.journal_entry).joinedload(JournalEntry.lines).joinedload(JournalLine.account),
+        )
+        .filter(Receipt.id == receipt_id, Customer.company_id == company_id)
+        .first()
+    )
+
+    if not receipt:
+        flash('❌ Receipt not found.', 'danger')
+        return redirect(url_for('accounting_routes.receipt_list'))
+
+    company = tenant_session.query(CompanyProfile).filter_by(company_id=company_id).first()
+
+    html = render_template('accounting/receipt_pdf.html', receipt=receipt, company=company)
+
+    pdf = BytesIO()
+    pisa_status = pisa.CreatePDF(html, dest=pdf)
+    if pisa_status.err:
+        return 'PDF generation error', 500
+
+    pdf.seek(0)
+    response = make_response(pdf.read())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = (
+        f'attachment; filename=receipt_{receipt.reference}.pdf'
+    )
+    return response
