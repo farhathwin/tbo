@@ -13,6 +13,7 @@
     .sidebar {
       background-color: #f8f9fa;
       width: 240px;
+      min-height: 100vh;
     }
     .sidebar a {
       display: block;
@@ -44,7 +45,6 @@
   <header class="bg-primary text-white py-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
       <div class="d-flex align-items-center gap-2">
-        <button class="btn btn-outline-light btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu">☰</button>
         <h5 class="mb-0">Accounting App</h5>
       </div>
       {% if session.get('user_id') %}
@@ -92,22 +92,18 @@
 <!-- Layout -->
 <div class="container-fluid flex-fill">
   <div class="row flex-nowrap">
-    <div class="col-lg-2 p-0">
-      <div class="offcanvas-lg offcanvas-start sidebar show" tabindex="-1" id="sidebarMenu" data-bs-scroll="true" data-bs-backdrop="false">
-        <div class="offcanvas-header border-bottom">
-          <h5 class="offcanvas-title">Menu</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
-        </div>
-        <div class="offcanvas-body p-0">
-          <a href="{{ url_for('register_routes.dashboard') }}">Dashboard</a>
-          <a href="{{ url_for('register_routes.user_list') }}">Users</a>
-          <hr>
-          <strong class="ms-3 text-muted">Accounting</strong>
-          <a href="{{ url_for('accounting_routes.manage_fiscal_years') }}">Fiscal Years</a>
-          <a href="{{ url_for('account_type_routes.manage_account_types') }}">Accounts Type</a>
-          <a href="{{ url_for('accounting_routes.chart_of_accounts') }}">Chart of Accounts</a>
-          <a href="{{ url_for('accounting_routes.journal_entry') }}">Journal</a>
-          <a href="{{ url_for('accounting_routes.journal_list') }}">Journal List</a>
+    <nav id="sidebarMenu" class="col-lg-2 p-0 sidebar border-end">
+      <div class="p-3">
+        <h5 class="border-bottom pb-2">Menu</h5>
+        <a href="{{ url_for('register_routes.dashboard') }}">Dashboard</a>
+        <a href="{{ url_for('register_routes.user_list') }}">Users</a>
+        <hr>
+        <strong class="ms-3 text-muted">Accounting</strong>
+        <a href="{{ url_for('accounting_routes.manage_fiscal_years') }}">Fiscal Years</a>
+        <a href="{{ url_for('account_type_routes.manage_account_types') }}">Accounts Type</a>
+        <a href="{{ url_for('accounting_routes.chart_of_accounts') }}">Chart of Accounts</a>
+        <a href="{{ url_for('accounting_routes.journal_entry') }}">Journal</a>
+        <a href="{{ url_for('accounting_routes.journal_list') }}">Journal List</a>
           <a href="{{ url_for('accounting_routes.customer_list') }}">Customer</a>
           <a href="{{ url_for('accounting_routes.supplier_list') }}">Supplier</a>
           <a href="{{ url_for('accounting_routes.cash_bank_list') }}">Bank And Cash</a>
@@ -116,9 +112,8 @@
           <a href="{{ url_for('accounting_routes.allocate_unallocated_deposit') }}">Allocate Unallocated Deposit</a>
           <strong class="ms-3 text-muted">Reporting</strong>
           <a href="{{ url_for('accounting_routes.financial_reports') }}">Financial Reports</a>
-        </div>
       </div>
-    </div>
+    </nav>
 
     <main class="col py-4">
       {% with messages = get_flashed_messages(with_categories=true) %}
