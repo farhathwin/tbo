@@ -1,8 +1,15 @@
-from app import create_app, db
-from flask_migrate import Migrate, upgrade
+import sys
+import os
 from sqlalchemy import text
+from flask_migrate import Migrate, upgrade
+
+# Add parent directory to path so imports work
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from app import create_app, db  # ✅ FIXED
 from app.utils.database_utils import get_tenant_db_path
 
+
+app = create_app()
 CENTRAL_DB_URI = "sqlite:///app.db"
 
 

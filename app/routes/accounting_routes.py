@@ -1025,6 +1025,7 @@ def create_default_accounts(tenant_session, company_id, created_by):
     default_accounts = [
         {"account_type": "Equity", "account_code": "9999", "account_name": "Opening Balance Suspense"},
         {"account_type": "Payable", "account_code": "2000", "account_name": "Account Payable Control"},
+        {"account_type": "Payable", "account_code": "2010", "account_name": "Unallocated Deposit Balane"},
         {"account_type": "Receivable", "account_code": "1000", "account_name": "Account Receivable Control "},
         {"account_type": "Bank, Cash & Wallets", "account_code": "1100", "account_name": "Bank, Cash & Wallets Control"},
         {"account_type": "Revenue", "account_code": "4000", "account_name": "Sales"},
@@ -1068,24 +1069,90 @@ def setup_default_accounts():
 
     return redirect(url_for('register_routes.profile_settings'))
 
+
+def generate_opening_balance_invoice(session, company_id, customer, amount, user_id, fiscal_year, suspense_account):
+    today = date.today()
+    invoice_number = f"OB-{customer.id}"
+
+    existing = session.query(Invoice).filter_by(
+        invoice_number=invoice_number,
+        company_id=company_id
+    ).first()
+    if existing:
+        return None  # Skip duplicate creation
+
+    invoice = Invoice(
+        company_id=company_id,
+        invoice_number=invoice_number,
+        invoice_date=today,
+        transaction_date=today,
+        customer_id=customer.id,
+        service_type="Opening Balance",
+        total_amount=amount,
+        currency="LKR",
+        status="Finalised",
+        created_by=user_id,
+        created_at=datetime.utcnow()
+    )
+    session.add(invoice)
+    session.flush()
+
+    journal = JournalEntry(
+        company_id=company_id,
+        date=today,
+        reference=f"Opening Balance - {customer.full_name or customer.business_name}",
+        narration=f"Opening balance for customer ID {customer.id}",
+        fiscal_year_id=fiscal_year.id,
+        created_by=user_id,
+        created_at=datetime.utcnow()
+    )
+    session.add(journal)
+    session.flush()
+
+    session.add_all([
+        JournalLine(
+            entry_id=journal.id,
+            account_id=customer.account_receivable_id,
+            debit=amount,
+            credit=0,
+            narration="Opening Balance Receivable",
+            partner_id=customer.id
+        ),
+        JournalLine(
+            entry_id=journal.id,
+            account_id=suspense_account.id,
+            debit=0,
+            credit=amount,
+            narration="Opening Balance Suspense"
+        )
+    ])
+    return invoice
+
 @accounting_routes.route('/customers/<int:customer_id>/add-opening-balance', methods=['POST'])
 def add_opening_balance(customer_id):
     if 'domain' not in session or 'company_id' not in session:
         return redirect(url_for('register_routes.login'))
-    
+
     tenant_session = current_tenant_session()
-    company_id = session.get("company_id")
+    company_id = session['company_id']
     user_id = session.get("user_id")
     today = date.today()
 
-    amount = float(request.form.get("opening_balance", 0))
+    try:
+        amount = Decimal(request.form.get("opening_balance", "0").strip())
+    except:
+        amount = Decimal(0)
+
     if amount <= 0:
         flash("❌ Amount must be greater than zero", "danger")
         return redirect(url_for("accounting_routes.view_customer", customer_id=customer_id))
 
-    customer = tenant_session.query(Customer).filter_by(id=customer_id).first()
+    customer = tenant_session.query(Customer).filter_by(id=customer_id, company_id=company_id).first()
+    if not customer:
+        flash("❌ Customer not found", "danger")
+        return redirect(url_for("accounting_routes.customer_list"))
 
-    # Re-fetch the Receivable Control account just in case it's not assigned
+    # Ensure customer has a receivable account
     if not customer.account_receivable_id:
         control_account = tenant_session.query(Account).filter_by(
             company_id=company_id,
@@ -1093,32 +1160,38 @@ def add_opening_balance(customer_id):
             account_code="1000",
             account_name="Account Receivable Control"
         ).first()
-        if control_account:
-            customer.account_receivable_id = control_account.id
-            tenant_session.commit()
+        if not control_account:
+            flash("❌ Receivable control account not found", "danger")
+            return redirect(url_for("accounting_routes.view_customer", customer_id=customer_id))
+        customer.account_receivable_id = control_account.id
+        tenant_session.commit()
 
-    # Final check
-    if not customer or not customer.account_receivable_id:
-        flash("❌ Customer or receivable account missing (still NULL)", "danger")
+    # Check if OB journal entry already exists (avoid duplicate)
+    existing_journal = tenant_session.query(JournalEntry).join(JournalLine).filter(
+        JournalEntry.company_id == company_id,
+        JournalLine.account_id == customer.account_receivable_id,
+        JournalLine.partner_id == customer.id,
+        JournalEntry.reference == f"Opening Balance - {customer.full_name or customer.business_name}"
+    ).first()
+
+    if existing_journal:
+        flash("⚠️ Opening balance already exists.", "warning")
         return redirect(url_for("accounting_routes.view_customer", customer_id=customer_id))
 
-    # Get the Opening Balance Suspense Account
-    suspense_account = tenant_session.query(Account).filter_by(
+    # Suspense account
+    suspense = tenant_session.query(Account).filter_by(
         company_id=company_id,
-        account_type="Equity",
         account_code="9999",
         account_name="Opening Balance Suspense"
     ).first()
-
-    if not suspense_account:
+    if not suspense:
         flash("❌ Opening Balance Suspense account not found", "danger")
         return redirect(url_for("accounting_routes.view_customer", customer_id=customer_id))
 
-    # Get active fiscal year
+    # Fiscal year
     fiscal_year = tenant_session.query(FiscalYear).filter_by(
         company_id=company_id, is_closed=True
     ).first()
-
     if not fiscal_year:
         flash("❌ Active fiscal year not found", "danger")
         return redirect(url_for("accounting_routes.view_customer", customer_id=customer_id))
@@ -1134,30 +1207,31 @@ def add_opening_balance(customer_id):
         created_at=datetime.utcnow()
     )
     tenant_session.add(journal)
-    tenant_session.flush()  # To get journal.id
+    tenant_session.flush()
 
-    # Create double entry lines
+    # Add Journal Lines
     tenant_session.add_all([
         JournalLine(
             entry_id=journal.id,
             account_id=customer.account_receivable_id,
             debit=amount,
             credit=0,
-            narration="Opening balance (Debit)",
-            partner_id=customer.id  # ✅ Link to customer as partner
+            narration="Opening Balance Receivable",
+            partner_id=customer.id
         ),
         JournalLine(
             entry_id=journal.id,
-            account_id=suspense_account.id,
+            account_id=suspense.id,
             debit=0,
             credit=amount,
-            narration="Opening balance (Credit)"
+            narration="Opening Balance Suspense"
         )
     ])
 
     tenant_session.commit()
-    flash("✅ Opening balance recorded successfully", "success")
+    flash("✅ Opening balance journal posted successfully", "success")
     return redirect(url_for("accounting_routes.view_customer", customer_id=customer_id))
+
 
 
 
@@ -1916,3 +1990,359 @@ def save_invoice(invoice_id):
 
     flash("✅ Invoice saved successfully", "success")
     return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice_id))
+
+@accounting_routes.route('/invoices/finalise/<int:invoice_id>', methods=['POST'])
+def finalise_invoice(invoice_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session.get('user_id')
+
+    invoice = tenant_session.query(Invoice).filter_by(id=invoice_id, company_id=company_id).first()
+    if not invoice:
+        flash("❌ Invoice not found.", "danger")
+        return redirect(url_for('accounting_routes.invoice_list'))
+
+    if invoice.status == 'Finalised':
+        flash("⚠️ Invoice is already finalised.", "warning")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
+    # ✅ Validate active fiscal year
+    fiscal_year = tenant_session.query(FiscalYear).filter_by(
+        company_id=company_id, is_closed=True
+    ).first()
+
+    if not fiscal_year:
+        flash("❌ No active fiscal year found.", "danger")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
+    # ✅ Fetch required accounts
+    sales_account = tenant_session.query(Account).filter_by(
+        company_id=company_id, account_code='4000', account_type='Revenue'
+    ).first()
+    purchase_account = tenant_session.query(Account).filter_by(
+        company_id=company_id, account_code='5000', account_type='Expense'
+    ).first()
+    receivable_control = tenant_session.query(Account).filter_by(
+        company_id=company_id, account_code='1000', account_type='Receivable'
+    ).first()
+    payable_control = tenant_session.query(Account).filter_by(
+        company_id=company_id, account_code='2000', account_type='Payable'
+    ).first()
+
+    if not all([sales_account, purchase_account, receivable_control, payable_control]):
+        flash("❌ One or more required control accounts missing (Sales, Purchase, AR, AP).", "danger")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
+    customer = tenant_session.query(Customer).filter_by(id=invoice.customer_id).first()
+    if not customer:
+        flash("❌ Customer not found.", "danger")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
+    if not customer.account_receivable_id:
+        customer.account_receivable_id = receivable_control.id
+        tenant_session.commit()
+
+    journal_lines = []
+    total_sell = 0
+
+    for line in invoice.lines:
+        if not line.sell_price or not line.supplier_id:
+            flash("❌ Missing sell price or supplier in a line item.", "danger")
+            return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
+        if not line.income_account_id:
+            line.income_account_id = sales_account.id
+        if not getattr(line, 'expense_account_id', None):
+            line.expense_account_id = purchase_account.id
+
+        if not line.purchase_number:
+            line.purchase_number = f"P{invoice.id:04}{line.id:02}"
+
+        # ✅ Credit sales account (revenue)
+        journal_lines.append(JournalLine(
+            account_id=line.income_account_id,
+            credit=line.sell_price,
+            narration=f"Sale - {line.type} {line.sub_type or ''} ({line.pnr or ''})"
+        ))
+
+        total_sell += float(line.sell_price)
+
+        # ✅ Purchase (if any)
+        purchase_total = float(line.base_fare or 0) + float(line.tax or 0)
+        if purchase_total > 0:
+            supplier = tenant_session.query(Supplier).filter_by(id=line.supplier_id).first()
+            if not supplier:
+                flash(f"❌ Supplier ID {line.supplier_id} not found.", "danger")
+                return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
+            if not supplier.account_payable_id:
+                supplier.account_payable_id = payable_control.id
+                tenant_session.commit()
+
+            # ✅ Credit payable
+            journal_lines.append(JournalLine(
+                account_id=supplier.account_payable_id,
+                credit=purchase_total,
+                narration=f"Payable - {line.type} {line.sub_type or ''} ({line.pnr or ''})",
+                partner_id=supplier.id
+            ))
+
+            # ✅ Debit expense
+            journal_lines.append(JournalLine(
+                account_id=line.expense_account_id,
+                debit=purchase_total,
+                narration=f"Purchase - {line.type} {line.sub_type or ''} ({line.pnr or ''})"
+            ))
+
+    # ✅ Debit receivable
+    journal_lines.append(JournalLine(
+        account_id=customer.account_receivable_id,
+        debit=total_sell,
+        narration=f"Receivable - {invoice.invoice_number}",
+        partner_id=customer.id
+    ))
+
+    # ✅ Create journal entry
+    journal_entry = JournalEntry(
+        company_id=company_id,
+        date=date.today(),
+        reference=invoice.invoice_number,
+        narration=f"Invoice Finalised - {invoice.invoice_number}",
+        fiscal_year_id=fiscal_year.id,
+        created_by=user_id,
+        lines=journal_lines
+    )
+
+    tenant_session.add(journal_entry)
+
+    invoice.status = 'Finalised'
+    invoice.total_amount = total_sell
+    tenant_session.commit()
+
+    flash("✅ Invoice finalised, journal entries with Receivable/Payable & fiscal year recorded.", "success")
+    return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
+
+@accounting_routes.route('/receipts/customer', methods=['GET', 'POST'])
+def customer_receipt():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session.get("user_id")
+
+    customers = tenant_session.query(Customer).filter_by(is_active=True).all()
+    selected_customer = None
+    open_invoices = []
+
+    deposit_options = tenant_session.query(CashBank).filter(
+        CashBank.company_id == company_id,
+        CashBank.type.in_(['Cash', 'Bank']),
+        CashBank.is_active == True
+    ).all()
+
+    if request.method == 'POST':
+        if 'select_customer' in request.form:
+            customer_id = int(request.form.get('customer_id'))
+            selected_customer = tenant_session.query(Customer).filter_by(id=customer_id, company_id=company_id).first()
+
+        elif 'submit_receipt' in request.form:
+            try:
+                customer_id = int(request.form.get('customer_id'))
+                selected_customer = tenant_session.query(Customer).filter_by(id=customer_id, company_id=company_id).first()
+
+                cashbank_id = int(request.form.get("payment_account_id"))
+                payment_method = request.form.get("payment_method")
+                cheque_number = request.form.get("payment_ref")
+                payment_date = datetime.strptime(request.form.get("payment_date"), "%Y-%m-%d").date()
+                payment_ref = request.form.get("payment_ref")
+                total_received = Decimal(request.form.get("total_received", 0))
+
+                if not selected_customer or not selected_customer.account_receivable_id:
+                    flash("❌ Invalid customer or missing receivable account.", "danger")
+                    return redirect(request.url)
+
+                selected_cashbank = tenant_session.query(CashBank).filter_by(
+                    account_cashandbank_id=cashbank_id, company_id=company_id
+                ).first()
+
+                if not selected_cashbank or not selected_cashbank.account_cashandbank_id:
+                    flash("❌ Invalid 'Deposit to' account selected.", "danger")
+                    return redirect(request.url)
+
+                payment_account_id = selected_cashbank.account_cashandbank_id
+                total_payment = Decimal(0)
+                lines = []
+
+                dues = get_customer_dues(tenant_session, company_id, selected_customer)
+
+                for due in dues:
+                    field_name = f"pay_invoice_{due['id']}"
+                    amount_str = request.form.get(field_name)
+                    if amount_str:
+                        amount = Decimal(amount_str or 0)
+                        if amount > 0:
+                            pay_amount = min(amount, due['balance_due'])
+                            lines.append(JournalLine(
+                                account_id=selected_customer.account_receivable_id,
+                                credit=pay_amount,
+                                narration=f"Payment for {due['invoice_number']}",
+                                partner_id=selected_customer.id
+                            ))
+                            total_payment += pay_amount
+
+                if total_payment <= 0:
+                    flash("❌ No payment amount entered.", "danger")
+                    return redirect(request.url)
+
+                lines.append(JournalLine(
+                    account_id=payment_account_id,
+                    debit=total_payment,
+                    narration=f"Customer Receipt via {payment_method} - {payment_ref}"
+                ))
+
+                fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=False).first()
+
+                journal_entry = JournalEntry(
+                    company_id=company_id,
+                    date=payment_date,
+                    reference=payment_ref or f"Receipt-{selected_customer.id}",
+                    narration=f"Receipt from {selected_customer.full_name or selected_customer.business_name}",
+                    created_by=user_id,
+                    fiscal_year_id=fiscal_year.id if fiscal_year else None,
+                    lines=lines
+                )
+
+                tenant_session.add(journal_entry)
+                tenant_session.commit()
+                flash("✅ Receipt recorded successfully.", "success")
+                return redirect(url_for("accounting_routes.customer_receipt"))
+
+            except Exception as e:
+                tenant_session.rollback()
+                flash(f"❌ Error: {str(e)}", "danger")
+                return redirect(request.url)
+
+    if request.method == 'POST' and 'customer_id' in request.form and not selected_customer:
+        try:
+            customer_id = int(request.form.get('customer_id'))
+            selected_customer = tenant_session.query(Customer).filter_by(id=customer_id, company_id=company_id).first()
+        except:
+            selected_customer = None
+
+    if selected_customer:
+        open_invoices = []
+
+
+        dues = get_customer_dues(tenant_session, company_id, selected_customer)
+
+        for invoice in dues:
+            if hasattr(invoice, 'journal_lines'):
+                invoice.payment_history = [
+                    {
+                        "date": line.entry.date,
+                        "amount": line.credit,
+                        "method": line.entry.reference,
+                        "ref": line.entry.narration
+                    }
+                    for line in invoice.journal_lines
+                    if line.credit and line.account_id == selected_customer.account_receivable_id
+                ]
+            else:
+                invoice.payment_history = invoice.payment_history if hasattr(invoice, 'payment_history') else []
+
+
+
+    return render_template(
+        'accounting/receipt_customer.html',
+        customers=customers,
+        selected_customer=selected_customer,
+        open_invoices=open_invoices,
+        cash_bank_accounts=deposit_options,
+        current_date=date.today()
+    )
+
+def get_customer_dues(session, company_id, customer):
+    from decimal import Decimal
+    dues = []
+
+    # ✅ Get Finalised Invoices with balance
+    invoices = session.query(Invoice).filter_by(
+        customer_id=customer.id,
+        company_id=company_id,
+        status='Finalised'
+    ).all()
+
+    for invoice in invoices:
+        paid = Decimal(sum([
+            Decimal(str(line.credit or 0))
+            for line in invoice.journal_lines
+            if line.account_id == customer.account_receivable_id
+        ]))
+        balance_due = Decimal(str(invoice.total_amount or 0)) - paid
+
+        if balance_due > 0:
+            invoice.amount_paid = paid
+            invoice.balance_due = balance_due
+            invoice.payment_history = [
+                {
+                    "date": line.entry.date,
+                    "amount": line.credit,
+                    "method": line.entry.reference,
+                    "ref": line.entry.narration
+                }
+                for line in invoice.journal_lines
+                if line.credit and line.account_id == customer.account_receivable_id
+            ]
+            dues.append(invoice)
+
+    # ✅ Add Opening Balance as Virtual Invoice if not settled
+    ob_entries = session.query(JournalEntry).join(JournalLine).filter(
+        JournalEntry.company_id == company_id,
+        JournalLine.account_id == customer.account_receivable_id,
+        JournalLine.partner_id == customer.id,
+        JournalEntry.reference.like("Opening Balance%")
+    ).all()
+
+    for entry in ob_entries:
+        debit_line = next((line for line in entry.lines if line.account_id == customer.account_receivable_id), None)
+        if not debit_line:
+            continue
+
+        credit_lines = session.query(JournalLine).join(JournalEntry).filter(
+            JournalEntry.company_id == company_id,
+            JournalLine.partner_id == customer.id,
+            JournalLine.account_id == customer.account_receivable_id,
+            JournalLine.credit > 0,
+            JournalEntry.date >= entry.date,
+            JournalEntry.reference != entry.reference
+        ).all()
+
+        paid = sum([Decimal(line.credit or 0) for line in credit_lines])
+        balance_due = Decimal(str(debit_line.debit or "0")) - paid
+
+        if balance_due > 0:
+            dues.append(type('VirtualInvoice', (), {
+                'id': f"OB-{entry.id}",
+                'invoice_number': "Opening Balance",
+                'invoice_date': entry.date,
+                'total_amount': debit_line.debit,
+                'amount_paid': paid,
+                'balance_due': balance_due,
+                'is_virtual': True,
+                'payment_history': [
+                    {
+                        "date": line.entry.date,
+                        "amount": line.credit,
+                        "method": line.entry.reference,
+                        "ref": line.entry.narration
+                    }
+                    for line in credit_lines
+                ]
+            }))
+
+    return dues

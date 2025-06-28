@@ -196,6 +196,9 @@
 <form method="POST" action="{{ url_for('accounting_routes.save_invoice', invoice_id=invoice.id) }}">
   <button type="submit" class="btn btn-primary">💾 Save</button>
 </form>
+<form method="POST" action="{{ url_for('accounting_routes.finalise_invoice', invoice_id=invoice.id) }}">
+  <button type="submit" class="btn btn-success">✔️ Convert to Invoice</button>
+</form>
 <a href="{{ url_for('accounting_routes.invoice_list') }}" class="btn btn-secondary mt-3">⬅ Back to Invoice List</a>
 
 <script>

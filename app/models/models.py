@@ -193,10 +193,13 @@ class JournalLine(Base):
     debit = Column(Float, default=0)
     credit = Column(Float, default=0)
     narration = Column(String(255))
+    customer_id = Column(Integer, ForeignKey('customers.id'), nullable=True)
+    supplier_id = Column(Integer, ForeignKey('suppliers.id'), nullable=True)
 
     entry = relationship("JournalEntry", back_populates="lines")
     account = relationship("Account", back_populates="journal_lines")
-
+    customer = relationship("Customer", backref="journal_lines")
+    supplier = relationship("Supplier", backref="journal_lines")
 
 
 class FiscalYear(Base):
@@ -312,7 +315,11 @@ class Invoice(Base):
     customer = relationship("Customer")
     lines = relationship("InvoiceLine", back_populates="invoice", cascade="all, delete-orphan")
     pax_details = relationship("PaxDetail", back_populates="invoice", cascade="all, delete-orphan")
-
+    journal_lines = relationship(
+        "JournalLine",
+        primaryjoin="foreign(JournalLine.partner_id)==Invoice.customer_id",
+        viewonly=True
+)
 
 class InvoiceLine(Base):
     __tablename__ = 'invoice_lines'
@@ -330,16 +337,18 @@ class InvoiceLine(Base):
     sell_price = Column(Numeric(12, 2), nullable=False)
     profit = Column(Numeric(12, 2), default=0.00)
 
-    pnr = Column(String(50))  # For Air or Other
-    designator = Column(String(20))  # Only for IATA
-    ticket_no = Column(String(50))  # Only for Air
+    pnr = Column(String(50))   
+    designator = Column(String(20))   
+    ticket_no = Column(String(50))   
 
     supplier_id = Column(Integer, ForeignKey('suppliers.id'))
     supplier = relationship("Supplier")
 
+    purchase_number = Column(String(50))  
+    income_account_id = Column(Integer, ForeignKey('accounts.id'))   
+    expense_account_id = Column(Integer, ForeignKey('accounts.id'))   
     invoice = relationship("Invoice", back_populates="lines")
 
-    # Optional: audit fields
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -358,4 +367,15 @@ class PaxDetail(Base):
 
     invoice = relationship('Invoice', back_populates='pax_details')
 
+class Receipt(Base):
+    __tablename__ = "receipts"
+    id = Column(Integer, primary_key=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"))
+    receipt_date = Column(Date)
+    payment_method = Column(String)
+    reference = Column(String)
+    notes = Column(Text)
+    total_amount = Column(Numeric(12, 2))
+    account_id = Column(Integer, ForeignKey("accounts.id"))  # deposit to
+    journal_entry_id = Column(Integer, ForeignKey("journal_entries.id"))
 

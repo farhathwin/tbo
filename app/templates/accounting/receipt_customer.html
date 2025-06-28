@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+{% block title %}Customer Receipt{% endblock %}
+
+{% block content %}
+<h3>Customer Receipt</h3>
+
+<!-- 👇 Customer Selection Form -->
+<form method="POST" id="customerForm">
+  <div class="row mb-3">
+    <div class="col-md-4">
+      <label for="customer_id" class="form-label">Select Customer</label>
+      <select name="customer_id" class="form-select" required onchange="document.getElementById('customerForm').submit();">
+        <option value="">-- Select --</option>
+        {% for customer in customers %}
+          <option value="{{ customer.id }}" {% if selected_customer and customer.id == selected_customer.id %}selected{% endif %}>
+            {{ customer.full_name or customer.business_name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+</form>
+
+{% if selected_customer %}
+<!-- 👇 Receipt Entry Form -->
+<form method="POST" id="receiptForm">
+  <input type="hidden" name="customer_id" value="{{ selected_customer.id }}">
+  <input type="hidden" name="submit_receipt" value="1">
+
+  <div class="row mb-3">
+    <div class="col-md-3">
+      <label class="form-label">Total Received Amount</label>
+      <input type="number" step="0.01" name="total_received" id="total_received" class="form-control" placeholder="0.00">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Date</label>
+      <input type="date" name="payment_date" class="form-control" value="{{ current_date }}" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Deposit to</label>
+      <select name="payment_account_id" class="form-select" required>
+        {% for cb in cash_bank_accounts %}
+          <option value="{{ cb.account_cashandbank_id }}">{{ cb.account_name or cb.bank_name }} ({{ cb.type }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Payment Method</label>
+      <select name="payment_method" class="form-select" id="payment_method" required onchange="toggleChequeField()">
+        <option value="">-- Select --</option>
+        <option value="Cash">Cash</option>
+        <option value="Bank Transfer">Bank Transfer</option>
+        <option value="Bank Deposit">Bank Deposit</option>
+        <option value="Cheque">Cheque</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row mb-3" id="chequeField" style="display: none;">
+    <div class="col-md-6">
+      <label class="form-label">Cheque Number</label>
+      <input type="text" name="payment_ref" class="form-control" placeholder="Enter cheque number">
+    </div>
+  </div>
+
+  <hr>
+  <h5>Outstanding Invoices</h5>
+  {% if open_invoices %}
+    <table class="table table-bordered">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Date</th>
+          <th>Total</th>
+          <th>Paid</th>
+          <th>Balance</th>
+          <th>Amount to Pay</th>
+        </tr>
+      </thead>
+      <tbody id="invoice-table">
+        {% for invoice in open_invoices %}
+        <tr>
+          <td>
+            {% if invoice.is_ob_virtual %}
+              <span class="badge bg-secondary">Opening Balance</span>
+            {% else %}
+              {{ invoice.invoice_number }}
+            {% endif %}
+          </td> 
+          <td>{{ invoice.invoice_date }}</td>
+          <td>{{ invoice.total_amount }}</td>
+          <td>{{ invoice.amount_paid or 0 }}</td>
+          <td>{{ invoice.balance_due }}</td>
+          <td>
+            <input type="number" step="0.01" class="form-control invoice-payment" name="pay_invoice_{{ invoice.id }}" data-balance="{{ invoice.balance_due }}">
+          </td>
+        </tr>
+        <tr class="table-secondary">
+        <td colspan="6">
+          <a href="javascript:void(0)" onclick="toggleHistory('history-{{ invoice.id }}')">
+            🔍 View Payment History
+          </a>
+          <div id="history-{{ invoice.id }}" style="display: none; margin-top: 10px;">
+            {% if invoice.payment_history %}
+              <ul class="mb-0">
+                {% for pay in invoice.payment_history %}
+                  <li>
+                    <strong>{{ pay.date }}</strong> — {{ pay.amount }} via {{ pay.method or 'Manual' }} {{ "(Ref: " ~ pay.ref ~ ")" if pay.ref }}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <em>No payments yet.</em>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="row">
+      <div class="col-md-6">
+        <strong>Invoice Total:</strong> <span id="invoice_total">0.00</span>
+      </div>
+      <div class="col-md-6 text-end">
+        <strong>Unallocated Balance:</strong>
+        <span id="remaining_total" style="font-weight: bold;">0.00</span>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <button type="submit" class="btn btn-primary">💰 Record Receipt</button>
+    </div>
+  {% else %}
+    <p>No unpaid invoices for this customer.</p>
+  {% endif %}
+</form>
+{% endif %}
+
+<script>
+function toggleChequeField() {
+  const method = document.getElementById('payment_method').value;
+  document.getElementById('chequeField').style.display = method === 'Cheque' ? 'block' : 'none';
+}
+
+document.getElementById('total_received')?.addEventListener('input', function () {
+  let total = parseFloat(this.value) || 0;
+  let invoiceTotal = 0;
+  const inputs = document.querySelectorAll('.invoice-payment');
+
+  inputs.forEach(input => {
+    let balance = parseFloat(input.dataset.balance || 0);
+    let pay = 0;
+
+    if (total >= balance) {
+      pay = balance;
+    } else if (total > 0) {
+      pay = total;
+    }
+
+    input.value = pay.toFixed(2);
+    invoiceTotal += pay;
+    total -= pay;
+  });
+
+  document.getElementById('invoice_total').innerText = invoiceTotal.toFixed(2);
+
+  const remaining = (parseFloat(document.getElementById('total_received').value) || 0) - invoiceTotal;
+  const remainingSpan = document.getElementById('remaining_total');
+  remainingSpan.innerText = remaining.toFixed(2);
+  remainingSpan.style.color = remaining < 0 ? 'red' : 'green';
+});
+
+function validateReceiptForm() {
+  const remaining = parseFloat(document.getElementById('remaining_total').innerText) || 0;
+  if (remaining < 0) {
+    alert("❌ Total applied exceeds received amount. Please fix.");
+    return false;
+  }
+  return true;
+}
+</script>
+
+<script>
+function toggleHistory(id) {
+  const el = document.getElementById(id);
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+</script>
+
+{% endblock %}
