@@ -2062,6 +2062,28 @@ def recalculate_invoice_totals(invoice, session):
     session.commit()
 
 
+def validate_invoice_lines(invoice):
+    """Ensure all invoice line fields are filled appropriately before finalisation."""
+    for line in invoice.lines:
+        # Basic required fields
+        if not line.type or not line.sub_type:
+            return False, "Line item missing type or sub type."
+        if not line.sell_price or not line.supplier_id:
+            return False, "Missing sell price or supplier in a line item."
+
+        # Additional validations based on type
+        if line.type == "Air Ticket":
+            if not line.pnr:
+                return False, "Air Ticket lines require PNR."
+            if line.sub_type == "IATA" and (not line.designator or not line.ticket_no):
+                return False, "IATA ticket lines require designator and ticket number."
+        else:  # Other services
+            if not line.pnr:
+                return False, "Reference is required for service lines."
+
+    return True, ""
+
+
 @accounting_routes.route('/invoices/<int:invoice_id>/add-pax', methods=['POST'])
 def add_pax_detail(invoice_id):
     if 'domain' not in session:
@@ -2188,10 +2210,13 @@ def finalise_invoice(invoice_id):
         flash("❌ Invoice must have at least one line item before finalisation.", "danger")
         return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
 
+    # Validate all invoice lines before proceeding
+    valid, msg = validate_invoice_lines(invoice)
+    if not valid:
+        flash(f"❌ {msg}", "danger")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
     for line in invoice.lines:
-        if not line.sell_price or not line.supplier_id:
-            flash("❌ Missing sell price or supplier in a line item.", "danger")
-            return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
 
         if not line.income_account_id:
             line.income_account_id = sales_account.id
