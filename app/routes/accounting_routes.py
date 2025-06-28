@@ -994,11 +994,31 @@ def view_customer(customer_id):
         JournalLine.partner_id == customer.id
     ).scalar() or 0.0
 
+    # Unallocated deposit balance
+    deposit_balance = get_customer_deposit_balance(
+        tenant_session, company_id, customer
+    )
+
+    # Customer related transactions
+    transactions = (
+        tenant_session.query(JournalLine)
+        .join(JournalEntry)
+        .join(Account)
+        .filter(
+            JournalEntry.company_id == company_id,
+            JournalLine.partner_id == customer.id,
+        )
+        .order_by(JournalEntry.date.desc(), JournalEntry.id.desc())
+        .all()
+    )
+
     return render_template(
         'accounting/customer_view.html',
         customer=customer,
         balance=balance,
-        current_date=date.today().isoformat()
+        deposit_balance=deposit_balance,
+        transactions=transactions,
+        current_date=date.today().isoformat(),
     )
 
 @accounting_routes.route('/customers/edit/<int:customer_id>', methods=['GET', 'POST'])
