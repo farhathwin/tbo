@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}Customer Outstanding{% endblock %}
+
+{% block content %}
+<h3>Customer Outstanding</h3>
+
+<form method="get" class="row g-3 mb-4">
+  <div class="col-md-3">
+    <label class="form-label">Start Date</label>
+    <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">End Date</label>
+    <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Customer</label>
+    <select name="customer_id" class="form-select">
+      <option value="">-- All Customers --</option>
+      {% for cust in customers %}
+        <option value="{{ cust.id }}" {% if cust.id == selected_customer_id %}selected{% endif %}>
+          {{ cust.full_name or cust.business_name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label">Service Type</label>
+    <input type="text" name="service_type" class="form-control" value="{{ service_type }}" placeholder="e.g. Ticket">
+  </div>
+  <div class="col-md-1 d-flex align-items-end">
+    <button type="submit" class="btn btn-primary">🔍 Filter</button>
+  </div>
+</form>
+
+<table class="table table-bordered table-sm">
+  <thead class="table-light">
+    <tr>
+      <th>Customer</th>
+      <th>Invoice #</th>
+      <th>Date</th>
+      <th>Type</th>
+      <th class="text-end">Total</th>
+      <th class="text-end">Paid</th>
+      <th class="text-end">Balance</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in report_rows %}
+      <tr>
+        <td>{{ row.customer_name }}</td>
+        <td>{{ row.invoice_number }}</td>
+        <td>{{ row.invoice_date }}</td>
+        <td>{{ row.service_type }}</td>
+        <td class="text-end">{{ "%.2f"|format(row.total_amount) }}</td>
+        <td class="text-end">{{ "%.2f"|format(row.amount_paid) }}</td>
+        <td class="text-end">{{ "%.2f"|format(row.balance_due) }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="text-center">No outstanding invoices found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<a href="{{ url_for('accounting_routes.financial_reports') }}" class="btn btn-secondary mt-3 float-end">⬅ Back</a>
+{% endblock %}
