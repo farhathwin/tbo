@@ -2144,6 +2144,10 @@ def finalise_invoice(invoice_id):
     journal_lines = []
     total_sell = 0
 
+    if not invoice.lines:
+        flash("❌ Invoice must have at least one line item before finalisation.", "danger")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
     for line in invoice.lines:
         if not line.sell_price or not line.supplier_id:
             flash("❌ Missing sell price or supplier in a line item.", "danger")
