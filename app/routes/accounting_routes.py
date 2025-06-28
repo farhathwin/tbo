@@ -552,12 +552,18 @@ def journal_list():
 
     journal_entries = query.order_by(JournalEntry.date.desc()).offset(offset).limit(per_page).all()
 
-    return render_template("accounting/journal_list.html", 
+    # Prepare query params without page for pagination links
+    query_params = request.args.to_dict(flat=True)
+    query_params.pop('page', None)
+
+    return render_template(
+        "accounting/journal_list.html",
         journal_entries=journal_entries,
         page=page,
         total_pages=total_pages,
         total_entries=total_entries,
-        per_page=per_page
+        per_page=per_page,
+        query_params=query_params
     )
 
 

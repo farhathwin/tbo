@@ -77,7 +77,7 @@
   <ul class="pagination pagination-sm justify-content-end">
     {% if page > 1 %}
       <li class="page-item">
-        <a class="page-link" href="{{ url_for('accounting_routes.journal_list', page=page-1, **request.args.to_dict(flat=True)) }}">Previous</a>
+        <a class="page-link" href="{{ url_for('accounting_routes.journal_list', page=page-1, **query_params) }}">Previous</a>
       </li>
     {% else %}
       <li class="page-item disabled"><span class="page-link">Previous</span></li>
@@ -89,7 +89,7 @@
 
     {% if page < total_pages %}
       <li class="page-item">
-        <a class="page-link" href="{{ url_for('accounting_routes.journal_list', page=page+1, **request.args.to_dict(flat=True)) }}">Next</a>
+        <a class="page-link" href="{{ url_for('accounting_routes.journal_list', page=page+1, **query_params) }}">Next</a>
       </li>
     {% else %}
       <li class="page-item disabled"><span class="page-link">Next</span></li>
