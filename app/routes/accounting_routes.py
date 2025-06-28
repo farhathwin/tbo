@@ -1820,6 +1820,9 @@ def edit_invoice(invoice_id):
         return redirect(url_for('accounting_routes.invoice_list'))
 
     if request.method == 'POST':
+        if invoice.status == 'Finalised':
+            flash("⚠️ Invoice is finalised and cannot be edited.", "warning")
+            return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
         invoice.invoice_date = datetime.strptime(
             request.form.get('invoice_date'), '%Y-%m-%d'
         ).date()
@@ -1895,6 +1898,14 @@ def add_invoice_line(invoice_id):
         flash("❌ Invoice not found", "danger")
         return redirect(url_for('accounting_routes.invoice_list'))
 
+    if invoice.status == 'Finalised':
+        flash("⚠️ Invoice is finalised and cannot be edited.", "warning")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
+    if invoice.status == 'Finalised':
+        flash("⚠️ Invoice is finalised and cannot be edited.", "warning")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
     try:
         type = request.form.get('type')
         sub_type = request.form.get('sub_type')
@@ -1947,6 +1958,14 @@ def edit_invoice_line(line_id):
     if not line:
         flash("❌ Invoice line not found", "danger")
         return redirect(url_for('accounting_routes.invoice_list'))
+
+    if line.invoice.status == 'Finalised':
+        flash("⚠️ Invoice is finalised and cannot be edited.", "warning")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=line.invoice_id))
+
+    if line.invoice.status == 'Finalised':
+        flash("⚠️ Invoice is finalised and cannot be edited.", "warning")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=line.invoice_id))
 
     suppliers = tenant_session.query(Supplier).filter_by(is_active=True).order_by(Supplier.business_name).all()
     pax_list = tenant_session.query(PaxDetail).filter_by(invoice_id=line.invoice_id).all()
@@ -2014,6 +2033,10 @@ def add_pax_detail(invoice_id):
     if not invoice:
         flash("❌ Invoice not found", "danger")
         return redirect(url_for('accounting_routes.invoice_list'))
+
+    if invoice.status == 'Finalised':
+        flash("⚠️ Invoice is finalised and cannot be edited.", "warning")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
 
     try:
         dob_str = request.form.get('dob')
@@ -2196,6 +2219,104 @@ def finalise_invoice(invoice_id):
     tenant_session.commit()
 
     flash("✅ Invoice finalised, journal entries with Receivable/Payable & fiscal year recorded.", "success")
+    return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
+
+@accounting_routes.route('/invoices/reverse/<int:invoice_id>', methods=['POST'])
+def reverse_invoice(invoice_id):
+    """Reverse a finalised invoice and move any payments to unallocated deposit."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session.get('user_id')
+
+    invoice = tenant_session.query(Invoice).filter_by(id=invoice_id, company_id=company_id).first()
+    if not invoice:
+        flash("❌ Invoice not found.", "danger")
+        return redirect(url_for('accounting_routes.invoice_list'))
+
+    if invoice.status != 'Finalised':
+        flash("⚠️ Only finalised invoices can be reversed.", "warning")
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
+    # Find the original journal entry
+    entry = tenant_session.query(JournalEntry).filter_by(company_id=company_id, reference=invoice.invoice_number).first()
+
+    fiscal_year = tenant_session.query(FiscalYear).filter(
+        FiscalYear.company_id == company_id,
+        FiscalYear.is_closed == True
+    ).first()
+
+    if entry and not entry.reversed_entry_id:
+        reverse_entry = JournalEntry(
+            company_id=company_id,
+            date=date.today(),
+            reference=f"REV-{entry.reference}",
+            narration=f"Reversal of Invoice {invoice.invoice_number}",
+            created_by=user_id,
+            fiscal_year_id=fiscal_year.id if fiscal_year else None
+        )
+        tenant_session.add(reverse_entry)
+        tenant_session.flush()
+        entry.reversed_entry_id = reverse_entry.id
+
+        for line in entry.lines:
+            tenant_session.add(JournalLine(
+                entry_id=reverse_entry.id,
+                account_id=line.account_id,
+                debit=line.credit,
+                credit=line.debit,
+                narration=f"Reversal: {line.narration}",
+                partner_id=line.partner_id
+            ))
+
+    customer = tenant_session.query(Customer).filter_by(id=invoice.customer_id).first()
+    deposit_account = tenant_session.query(Account).filter_by(company_id=company_id, account_code='2010').first()
+
+    if customer and deposit_account and customer.account_receivable_id:
+        payment_lines = tenant_session.query(JournalLine).join(JournalEntry).filter(
+            JournalEntry.company_id == company_id,
+            JournalLine.account_id == customer.account_receivable_id,
+            JournalLine.partner_id == customer.id,
+            JournalLine.credit > 0,
+            JournalLine.narration.ilike(f"%{invoice.invoice_number}%")
+        ).all()
+
+        total_paid = sum(line.credit or 0 for line in payment_lines)
+
+        if total_paid > 0:
+            realloc_entry = JournalEntry(
+                company_id=company_id,
+                date=date.today(),
+                reference=f"REV-ALLOC-{invoice.invoice_number}",
+                narration=f"Reallocate payment for {invoice.invoice_number}",
+                created_by=user_id,
+                fiscal_year_id=fiscal_year.id if fiscal_year else None
+            )
+            tenant_session.add(realloc_entry)
+            tenant_session.flush()
+
+            tenant_session.add(JournalLine(
+                entry_id=realloc_entry.id,
+                account_id=customer.account_receivable_id,
+                debit=total_paid,
+                narration=f"Reverse payment for {invoice.invoice_number}",
+                partner_id=customer.id
+            ))
+            tenant_session.add(JournalLine(
+                entry_id=realloc_entry.id,
+                account_id=deposit_account.id,
+                credit=total_paid,
+                narration="Unallocated Deposit",
+                partner_id=customer.id
+            ))
+
+    invoice.status = 'Draft'
+    tenant_session.commit()
+
+    flash("✅ Invoice reversed. Journal entry created and payments moved to unallocated deposit.", "success")
     return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
 
 

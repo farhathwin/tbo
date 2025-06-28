@@ -1,7 +1,12 @@
 {% extends 'base.html' %}
 {% block title %}Edit Invoice Line{% endblock %}
+{% set locked = line.invoice.status == 'Finalised' %}
 {% block content %}
 <h3>Edit Line Item for Invoice #{{ line.invoice.invoice_number }}</h3>
+{% if locked %}
+<p>This invoice is finalised and cannot be edited.</p>
+<a href="{{ url_for('accounting_routes.edit_invoice', invoice_id=line.invoice_id) }}" class="btn btn-secondary">⬅ Back to Invoice</a>
+{% else %}
 <form method="POST">
   <div class="row g-2 mb-2">
     <div class="col-md-2">
@@ -71,6 +76,7 @@
     <a href="{{ url_for('accounting_routes.edit_invoice', invoice_id=line.invoice_id) }}" class="btn btn-secondary">⬅ Back to Invoice</a>
   </div>
 </form>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
