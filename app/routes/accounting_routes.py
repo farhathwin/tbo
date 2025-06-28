@@ -2938,6 +2938,17 @@ def reverse_receipt(receipt_id):
         ))
 
     tenant_session.commit()
+
+    super_user = (
+        tenant_session.query(TenantUser)
+        .filter(func.lower(TenantUser.role) == 'superxuser', TenantUser.company_id == company_id)
+        .first()
+    )
+    if super_user:
+        subject = f'Receipt {receipt.reference} reversed'
+        body = f'Receipt {receipt.reference} for {receipt.customer.full_name or receipt.customer.business_name} was reversed.'
+        send_email(mail, super_user.email, subject, body)
+
     flash('✅ Receipt reversed successfully.', 'success')
     return redirect(url_for('accounting_routes.receipt_list'))
 
