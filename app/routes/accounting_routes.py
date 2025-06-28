@@ -641,7 +641,8 @@ def reverse_journal_entry(entry_id):
             account_id=line.account_id,
             debit=line.credit,
             credit=line.debit,
-            narration=f"Reversal: {line.narration}"
+            narration=f"Reversal: {line.narration}",
+            partner_id=line.partner_id
         )
         tenant_session.add(reversed_line)
 
