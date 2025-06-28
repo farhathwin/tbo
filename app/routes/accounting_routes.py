@@ -2426,7 +2426,14 @@ def get_customer_dues(session, company_id, customer):
             JournalLine.account_id == customer.account_receivable_id,
             JournalLine.partner_id == customer.id,
             JournalLine.credit > 0,
-            JournalLine.narration.ilike(f"Payment for {invoice.invoice_number}%")
+            or_(
+                JournalLine.narration.ilike(
+                    f"Payment for {invoice.invoice_number}%"
+                ),
+                JournalLine.narration.ilike(
+                    f"Deposit Allocation for {invoice.invoice_number}%"
+                ),
+            ),
         ).all()
 
         paid = Decimal(sum([Decimal(str(line.credit or 0)) for line in payment_lines]))
