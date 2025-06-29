@@ -1884,6 +1884,11 @@ def generate_supplier_payment_number(session):
     return f"SP{next_num:05d}"
 
 
+def generate_purchase_number(invoice_id: int, line_id: int) -> str:
+    """Return purchase number like P000100 for given invoice and line IDs."""
+    return f"P{invoice_id:04}{line_id:02}"
+
+
 def get_supplier_balance(session, company_id, supplier):
     """Return payable balance for a supplier."""
     credit_total = session.query(func.coalesce(func.sum(JournalLine.credit), 0)).join(JournalEntry).filter(
@@ -2181,6 +2186,9 @@ def add_invoice_line(invoice_id):
 
         tenant_session.add(line)
         tenant_session.commit()
+        if not line.purchase_number:
+            line.purchase_number = generate_purchase_number(invoice.id, line.id)
+            tenant_session.commit()
         flash("✅ Line item added", "success")
 
     except Exception as e:
@@ -2462,7 +2470,7 @@ def finalise_invoice(invoice_id):
             line.expense_account_id = purchase_account.id
 
         if not line.purchase_number:
-            line.purchase_number = f"P{invoice.id:04}{line.id:02}"
+            line.purchase_number = generate_purchase_number(invoice.id, line.id)
 
         # ✅ Credit sales account (revenue)
         journal_lines.append(JournalLine(
