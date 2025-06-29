@@ -37,14 +37,14 @@ def migrate_tenant(domain):
     app = create_app(db_uri_override=db_uri)
     migrate = Migrate(app, db)
     with app.app_context():
-        # Stamp the database if no revision is recorded
+
         try:
             version = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar()
         except Exception:
             version = None
 
         if version is None:
-            stamp(revision="head")
+
 
         upgrade()
 
