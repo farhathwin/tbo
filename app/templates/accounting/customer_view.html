@@ -2,19 +2,22 @@
 {% block title %}Customer View{% endblock %}
 
 {% block content %}
-<h3>Customer Details</h3>
+<h3>Customer Details - ID {{ customer.id }}</h3>
 
 <ul class="nav nav-tabs" id="custTab" role="tablist">
   <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="detail-tab" data-bs-toggle="tab" data-bs-target="#detail" type="button" role="tab">Details</button>
+    <button class="nav-link" id="detail-tab" data-bs-toggle="tab" data-bs-target="#detail" type="button" role="tab">Details</button>
   </li>
   <li class="nav-item" role="presentation">
     <button class="nav-link" id="tx-tab" data-bs-toggle="tab" data-bs-target="#tx" type="button" role="tab">Transactions</button>
   </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" type="button" role="tab">Settings</button>
+  </li>
 </ul>
 
 <div class="tab-content mt-3">
-  <div class="tab-pane fade show active" id="detail" role="tabpanel">
+  <div class="tab-pane fade" id="detail" role="tabpanel">
     <div class="card mb-3">
       <div class="card-body">
         <p><strong>Type:</strong> {{ customer.customer_type }}</p>
@@ -85,7 +88,84 @@
       </tbody>
     </table>
   </div>
+  <div class="tab-pane fade show active" id="settings" role="tabpanel">
+    <form method="POST" action="{{ url_for('accounting_routes.update_customer_settings', customer_id=customer.id) }}">
+      <div class="row g-2">
+        <div class="col-md-6">
+          <label>Address Line 1</label>
+          <input type="text" name="address_line_1" class="form-control" value="{{ customer.address_line_1 or '' }}">
+        </div>
+        <div class="col-md-6">
+          <label>Address Line 2</label>
+          <input type="text" name="address_line_2" class="form-control" value="{{ customer.address_line_2 or '' }}">
+        </div>
+        <div class="col-md-3">
+          <label>City</label>
+          <input type="text" name="city" class="form-control" value="{{ customer.city or '' }}">
+        </div>
+        <div class="col-md-3">
+          <label>Country</label>
+          <input type="text" name="country" class="form-control" value="{{ customer.country or '' }}">
+        </div>
+        <div class="col-md-3">
+          <label>Email</label>
+          <input type="email" name="email" class="form-control" value="{{ customer.email or '' }}">
+        </div>
+        <div class="col-md-3 position-relative">
+          <label for="consultant">Travel Consultant</label>
+          <input id="consultant" name="staff_email" class="form-control" autocomplete="off" value="{{ customer.consultant.email if customer.consultant else '' }}">
+          <div id="staff-suggestions" class="list-group position-absolute w-100" style="z-index: 1000;"></div>
+        </div>
+        <div class="col-md-2">
+          <label>Due Term</label>
+          <input type="number" name="due_term" class="form-control" value="{{ customer.due_term or 0 }}">
+        </div>
+        <div class="col-md-2">
+          <label>Markup %</label>
+          <input type="number" step="0.01" name="markup" class="form-control" value="{{ customer.markup or 0 }}">
+        </div>
+        <div class="col-md-2">
+          <label>&nbsp;</label>
+          <button type="submit" class="btn btn-primary w-100">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
 </div>
 
 <a href="{{ url_for('accounting_routes.customer_list') }}" class="btn btn-secondary mt-4">⬅ Back to List</a>
+<script id="staff-data" type="application/json">
+  {{ staff_json | tojson }}
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const staff = JSON.parse(document.getElementById('staff-data').textContent);
+  const input = document.getElementById('consultant');
+  const suggestions = document.getElementById('staff-suggestions');
+
+  input.addEventListener('input', function () {
+    const term = input.value.toLowerCase().trim();
+    suggestions.innerHTML = '';
+    if (term.length < 2) return;
+    const matches = staff.filter(s => s.email.toLowerCase().includes(term));
+    matches.forEach(s => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'list-group-item list-group-item-action';
+      item.textContent = s.email;
+      item.addEventListener('click', () => {
+        input.value = s.email;
+        suggestions.innerHTML = '';
+      });
+      suggestions.appendChild(item);
+    });
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!input.contains(e.target) && !suggestions.contains(e.target)) {
+      suggestions.innerHTML = '';
+    }
+  });
+});
+</script>
 {% endblock %}

@@ -243,11 +243,22 @@ class Customer(Base):
     full_name = Column(String(100), nullable=True)
     business_name = Column(String(255), nullable=True)
 
+    # --- Contact & Defaults ---
+    email = Column(String(100))
+    address_line_1 = Column(String(200))
+    address_line_2 = Column(String(200))
+    city = Column(String(100))
+    country = Column(String(50))
+    due_term = Column(Integer, default=0)
+    consultant_id = Column(Integer, ForeignKey('users.id'))
+    markup = Column(Float, default=0.0)
+
     is_active = Column(Boolean, default=True)
     created_by = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     account = relationship("Account", backref="customers", foreign_keys=[account_receivable_id])
+    consultant = relationship("TenantUser", foreign_keys=[consultant_id])
 
     __table_args__ = (
         UniqueConstraint('company_id', 'phone_number', name='uq_company_customer_phone'),

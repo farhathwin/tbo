@@ -181,6 +181,11 @@ document.addEventListener("DOMContentLoaded", function () {
       item.addEventListener('click', () => {
         input.value = `${c.name} - ${c.phone}`;
         hiddenInput.value = c.id;
+        document.querySelector('input[name="due_term"]').value = c.due_term || 0;
+        const staffInput = document.getElementById('consultant');
+        if (c.consultant_email) {
+          staffInput.value = c.consultant_email;
+        }
         suggestions.innerHTML = '';
       });
       suggestions.appendChild(item);
