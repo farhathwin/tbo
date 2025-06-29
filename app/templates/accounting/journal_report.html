@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Journal Report{% endblock %}
+
+{% block content %}
+<h3>Journal Report</h3>
+<a href="{{ url_for('accounting_routes.journal_list') }}" class="btn btn-secondary btn-sm mb-3">📄 Journal List</a>
+
+<form method="get" class="row g-3 mb-4">
+  <div class="col-md-3">
+    <label class="form-label">Start Date</label>
+    <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">End Date</label>
+    <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+  </div>
+  <div class="col-md-2 d-flex align-items-end">
+    <button type="submit" class="btn btn-primary">🔍 Filter</button>
+  </div>
+</form>
+
+<table class="table table-sm table-bordered table-hover">
+  <thead class="table-light">
+    <tr>
+      <th>Purchase No.</th>
+      <th>Invoice #</th>
+      <th>Service Date</th>
+      <th>Supplier</th>
+      <th class="text-end">Sell Price</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for line in lines %}
+    <tr>
+      <td>{{ line.purchase_number }}</td>
+      <td>{{ line.invoice.invoice_number }}</td>
+      <td>{{ line.service_date }}</td>
+      <td>{{ line.supplier.business_name if line.supplier else '' }}</td>
+      <td class="text-end">{{ "%.2f"|format(line.sell_price) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="text-center">No lines found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

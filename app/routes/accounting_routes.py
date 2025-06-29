@@ -991,6 +991,51 @@ def customer_outstanding():
     )
 
 
+@accounting_routes.route('/journal-report', methods=['GET'])
+def journal_report():
+    """List invoice purchase lines with optional date filters."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    query = (
+        tenant_session.query(InvoiceLine)
+        .join(Invoice)
+        .filter(Invoice.company_id == company_id)
+    )
+
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    if start_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            query = query.filter(InvoiceLine.service_date >= start_date)
+        except ValueError:
+            pass
+    if end_date_str:
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            query = query.filter(InvoiceLine.service_date <= end_date)
+        except ValueError:
+            pass
+
+    lines = (
+        query.options(joinedload(InvoiceLine.invoice), joinedload(InvoiceLine.supplier))
+        .order_by(InvoiceLine.service_date.desc(), InvoiceLine.id.desc())
+        .all()
+    )
+
+    return render_template(
+        'accounting/journal_report.html',
+        lines=lines,
+        start_date=start_date_str or '',
+        end_date=end_date_str or ''
+    )
+
+
 @accounting_routes.route('/customers', methods=['GET', 'POST'])
 def customer_list():
     if 'domain' not in session or 'company_id' not in session:
