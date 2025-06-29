@@ -2666,7 +2666,10 @@ def customer_receipt():
                         partner_id=selected_customer.id
                     ))
 
-                fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=False).first()
+                fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=True).first()
+                if not fiscal_year:
+                    flash('⚠️ Active fiscal year not found.', 'danger')
+                    return redirect(request.url)
 
                 receipt_number = generate_receipt_number(tenant_session)
 
@@ -2805,7 +2808,10 @@ def allocate_unallocated_deposit():
                     partner_id=selected_customer.id
                 ))
 
-                fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=False).first()
+                fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=True).first()
+                if not fiscal_year:
+                    flash('⚠️ Active fiscal year not found.', 'danger')
+                    return redirect(request.url)
 
                 allocation_ref = generate_allocation_reference(tenant_session)
 
