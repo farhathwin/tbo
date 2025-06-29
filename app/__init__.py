@@ -16,7 +16,10 @@ def create_app(db_uri_override=None):
     app = Flask(__name__)
 
     # Main database config
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri_override or 'sqlite:///app.db'
+    # Default to the central database stored under ``instance/app.db`` unless
+    # a different URI is provided at creation time.
+    default_db = 'sqlite:///instance/app.db'
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri_override or default_db
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = 'your_secret_key_here'
     app.config['SESSION_TYPE'] = 'filesystem'
