@@ -1,6 +1,24 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response, render_template_string, Response
 from datetime import datetime, date
-from app.models.models import FiscalYear,Account, AccountType, CompanyProfile ,JournalEntry, JournalLine, Customer, Supplier, CashBank, Invoice, InvoiceLine, PaxDetail, TenantUser, Receipt
+from app.models.models import (
+    FiscalYear,
+    Account,
+    AccountType,
+    CompanyProfile,
+    JournalEntry,
+    JournalLine,
+    Customer,
+    Supplier,
+    CashBank,
+    Invoice,
+    InvoiceLine,
+    PaxDetail,
+    TenantUser,
+    Receipt,
+    SupplierReconciliation,
+    Expense,
+    SupplierPayment,
+)
 from app.routes.register_routes import current_tenant_session
 from sqlalchemy import or_, and_, func
 from sqlalchemy.orm import joinedload
@@ -1855,6 +1873,33 @@ def generate_receipt_number(session):
         next_num = 1
     return f"R{next_num:05d}"
 
+
+def generate_supplier_payment_number(session):
+    """Return next supplier payment reference like SP00001."""
+    last_pay = session.query(SupplierPayment).order_by(SupplierPayment.id.desc()).first()
+    if last_pay and last_pay.reference and last_pay.reference.startswith("SP") and last_pay.reference[2:].isdigit():
+        next_num = int(last_pay.reference[2:]) + 1
+    else:
+        next_num = 1
+    return f"SP{next_num:05d}"
+
+
+def get_supplier_balance(session, company_id, supplier):
+    """Return payable balance for a supplier."""
+    credit_total = session.query(func.coalesce(func.sum(JournalLine.credit), 0)).join(JournalEntry).filter(
+        JournalEntry.company_id == company_id,
+        JournalLine.account_id == supplier.account_payable_id,
+        JournalLine.partner_id == supplier.id,
+    ).scalar() or 0
+
+    debit_total = session.query(func.coalesce(func.sum(JournalLine.debit), 0)).join(JournalEntry).filter(
+        JournalEntry.company_id == company_id,
+        JournalLine.account_id == supplier.account_payable_id,
+        JournalLine.partner_id == supplier.id,
+    ).scalar() or 0
+
+    return Decimal(str(credit_total)) - Decimal(str(debit_total))
+
 @accounting_routes.route('/invoices', methods=['GET', 'POST'])
 def invoice_list():
     if 'domain' not in session or 'company_id' not in session:
@@ -3209,3 +3254,213 @@ def receipt_pdf(receipt_id):
         f'attachment; filename=receipt_{receipt.reference}.pdf'
     )
     return response
+
+
+# ---------------- Supplier Features -----------------
+
+@accounting_routes.route('/suppliers/reconcile', methods=['GET', 'POST'])
+def supplier_reconcile():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    suppliers = tenant_session.query(Supplier).filter_by(is_active=True).all()
+
+    if request.method == 'POST':
+        supplier_id = int(request.form.get('supplier_id'))
+        recon_date = datetime.strptime(request.form.get('recon_date'), '%Y-%m-%d').date()
+        amount = Decimal(request.form.get('amount', '0'))
+        reference = request.form.get('reference') or None
+        notes = request.form.get('notes') or None
+
+        rec = SupplierReconciliation(
+            supplier_id=supplier_id,
+            recon_date=recon_date,
+            amount=amount,
+            reference=reference,
+            notes=notes,
+        )
+        tenant_session.add(rec)
+        tenant_session.commit()
+        flash('✅ Reconciliation saved.', 'success')
+        return redirect(url_for('accounting_routes.supplier_reconcile'))
+
+    return render_template('accounting/supplier_reconcile.html', suppliers=suppliers, current_date=date.today())
+
+
+@accounting_routes.route('/expenses/post', methods=['GET', 'POST'])
+def post_expense():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session.get('user_id')
+
+    suppliers = tenant_session.query(Supplier).filter_by(supplier_type='Expenses', is_active=True).all()
+    expense_accounts = tenant_session.query(Account).filter_by(company_id=company_id, account_type='Expense').all()
+
+    if request.method == 'POST':
+        supplier_id = int(request.form.get('supplier_id'))
+        account_id = int(request.form.get('account_id'))
+        expense_date = datetime.strptime(request.form.get('expense_date'), '%Y-%m-%d').date()
+        description = request.form.get('description')
+        amount = Decimal(request.form.get('amount', '0'))
+
+        supplier = tenant_session.query(Supplier).filter_by(id=supplier_id).first()
+        if not supplier:
+            flash('❌ Supplier not found.', 'danger')
+            return redirect(request.url)
+
+        fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=True).first()
+        if not fiscal_year:
+            flash('⚠️ Active fiscal year not found.', 'danger')
+            return redirect(request.url)
+
+        entry = JournalEntry(
+            company_id=company_id,
+            date=expense_date,
+            reference='EXP',
+            narration=description,
+            fiscal_year_id=fiscal_year.id,
+            created_by=user_id,
+        )
+        tenant_session.add(entry)
+        tenant_session.flush()
+
+        tenant_session.add_all([
+            JournalLine(
+                entry_id=entry.id,
+                account_id=account_id,
+                debit=amount,
+                narration=description,
+            ),
+            JournalLine(
+                entry_id=entry.id,
+                account_id=supplier.account_payable_id,
+                credit=amount,
+                narration=description,
+                partner_id=supplier.id,
+            ),
+        ])
+
+        expense = Expense(
+            supplier_id=supplier.id,
+            company_id=company_id,
+            expense_date=expense_date,
+            description=description,
+            amount=amount,
+            account_id=account_id,
+            journal_entry_id=entry.id,
+        )
+        tenant_session.add(expense)
+        tenant_session.commit()
+        flash('✅ Expense posted.', 'success')
+        return redirect(url_for('accounting_routes.post_expense'))
+
+    return render_template(
+        'accounting/expense_post.html',
+        suppliers=suppliers,
+        expense_accounts=expense_accounts,
+        current_date=date.today(),
+    )
+
+
+@accounting_routes.route('/suppliers/payment', methods=['GET', 'POST'])
+def supplier_payment():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session.get('user_id')
+
+    suppliers = tenant_session.query(Supplier).filter_by(is_active=True).all()
+    cash_banks = tenant_session.query(CashBank).filter(
+        CashBank.company_id == company_id,
+        CashBank.type.in_(['Cash', 'Bank']),
+        CashBank.is_active == True,
+    ).all()
+
+    if request.method == 'POST':
+        supplier_id = int(request.form.get('supplier_id'))
+        payment_account_id = int(request.form.get('payment_account_id'))
+        payment_method = request.form.get('payment_method')
+        payment_date = datetime.strptime(request.form.get('payment_date'), '%Y-%m-%d').date()
+        notes = request.form.get('notes') or None
+        amount = Decimal(request.form.get('amount', '0'))
+
+        supplier = tenant_session.query(Supplier).filter_by(id=supplier_id).first()
+        if not supplier:
+            flash('❌ Supplier not found.', 'danger')
+            return redirect(request.url)
+
+        if supplier.supplier_type in ['BSP', 'Airlines']:
+            has_rec = tenant_session.query(SupplierReconciliation).filter_by(supplier_id=supplier_id).first()
+            if not has_rec:
+                flash('❌ Reconciliation required before payment for this supplier.', 'danger')
+                return redirect(request.url)
+
+        if supplier.supplier_type == 'Expenses':
+            has_exp = tenant_session.query(Expense).filter_by(supplier_id=supplier_id).first()
+            if not has_exp:
+                flash('❌ Please post expenses before paying this supplier.', 'danger')
+                return redirect(request.url)
+
+        fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=True).first()
+        if not fiscal_year:
+            flash('⚠️ Active fiscal year not found.', 'danger')
+            return redirect(request.url)
+
+        reference = generate_supplier_payment_number(tenant_session)
+
+        entry = JournalEntry(
+            company_id=company_id,
+            date=payment_date,
+            reference=reference,
+            narration=f'Supplier Payment - {supplier.business_name}',
+            fiscal_year_id=fiscal_year.id,
+            created_by=user_id,
+        )
+        tenant_session.add(entry)
+        tenant_session.flush()
+
+        tenant_session.add_all([
+            JournalLine(
+                entry_id=entry.id,
+                account_id=supplier.account_payable_id,
+                debit=amount,
+                narration='Supplier Payment',
+                partner_id=supplier.id,
+            ),
+            JournalLine(
+                entry_id=entry.id,
+                account_id=payment_account_id,
+                credit=amount,
+                narration='Supplier Payment',
+            ),
+        ])
+
+        pay = SupplierPayment(
+            supplier_id=supplier.id,
+            company_id=company_id,
+            payment_date=payment_date,
+            payment_method=payment_method,
+            reference=reference,
+            notes=notes,
+            total_amount=amount,
+            account_id=payment_account_id,
+            journal_entry_id=entry.id,
+        )
+        tenant_session.add(pay)
+        tenant_session.commit()
+        flash('✅ Supplier payment recorded.', 'success')
+        return redirect(url_for('accounting_routes.supplier_payment'))
+
+    return render_template(
+        'accounting/supplier_payment.html',
+        suppliers=suppliers,
+        cash_banks=cash_banks,
+        current_date=date.today(),
+    )

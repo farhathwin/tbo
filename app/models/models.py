@@ -393,3 +393,51 @@ class Receipt(Base):
     customer = relationship("Customer")
     journal_entry = relationship("JournalEntry")
 
+
+class SupplierReconciliation(Base):
+    __tablename__ = 'supplier_reconciliations'
+
+    id = Column(Integer, primary_key=True)
+    supplier_id = Column(Integer, ForeignKey('suppliers.id'), nullable=False)
+    recon_date = Column(Date, nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+    reference = Column(String)
+    notes = Column(Text)
+
+    supplier = relationship('Supplier')
+
+
+class Expense(Base):
+    __tablename__ = 'expenses'
+
+    id = Column(Integer, primary_key=True)
+    supplier_id = Column(Integer, ForeignKey('suppliers.id'), nullable=False)
+    company_id = Column(Integer, nullable=False)
+    expense_date = Column(Date, nullable=False)
+    description = Column(String)
+    amount = Column(Numeric(12, 2), nullable=False)
+    account_id = Column(Integer, ForeignKey('accounts.id'))
+    journal_entry_id = Column(Integer, ForeignKey('journal_entries.id'))
+
+    supplier = relationship('Supplier')
+    account = relationship('Account')
+    journal_entry = relationship('JournalEntry')
+
+
+class SupplierPayment(Base):
+    __tablename__ = 'supplier_payments'
+
+    id = Column(Integer, primary_key=True)
+    supplier_id = Column(Integer, ForeignKey('suppliers.id'), nullable=False)
+    company_id = Column(Integer, nullable=False)
+    payment_date = Column(Date, nullable=False)
+    payment_method = Column(String)
+    reference = Column(String)
+    notes = Column(Text)
+    total_amount = Column(Numeric(12, 2))
+    account_id = Column(Integer, ForeignKey('accounts.id'))  # paid from
+    journal_entry_id = Column(Integer, ForeignKey('journal_entries.id'))
+
+    supplier = relationship('Supplier')
+    journal_entry = relationship('JournalEntry')
+
