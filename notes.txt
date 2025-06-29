@@ -1,1 +1,10 @@
-python scripts/migrate_tenants.py
+## Migration Steps
+
+1. After modifying models, generate a new migration:
+   flask db migrate -m "Describe changes"
+
+2. Apply migrations for all tenant databases:
+   python scripts/migrate_tenants.py
+
+3. Start the application:
+   python main.py
