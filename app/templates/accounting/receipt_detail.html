@@ -13,7 +13,7 @@
   <p><strong>Date:</strong> {{ receipt.receipt_date }}</p>
   <p><strong>Customer:</strong> {{ receipt.customer.full_name or receipt.customer.business_name }}</p>
   <p><strong>Payment Method:</strong> {{ receipt.payment_method }}{% if receipt.notes %} ({{ receipt.notes }}){% endif %}</p>
-  <p><strong>Total Received:</strong> {{ "{:,.2f}".format(receipt.total_amount) }}</p>
+  <p><strong>Total Received:</strong> {{ company.currency_code }} {{ "{:,.2f}".format(receipt.total_amount) }}</p>
   <div class="mt-4">
     <a href="{{ url_for('accounting_routes.receipt_pdf', receipt_id=receipt.id) }}" class="btn btn-primary btn-sm">Download PDF</a>
     <button onclick="window.print()" class="btn btn-secondary btn-sm">Print</button>
