@@ -23,23 +23,37 @@
   <thead class="table-light">
     <tr>
       <th>Purchase No.</th>
+      <th>Type</th>
+      <th>Passenger</th>
       <th>Invoice #</th>
       <th>Service Date</th>
+      <th class="text-end">Base Fare</th>
+      <th class="text-end">Tax</th>
+      <th class="text-end">Total Cost</th>
+      <th>Ticket No.</th>
       <th>Supplier</th>
-      <th class="text-end">Sell Price</th>
     </tr>
   </thead>
   <tbody>
     {% for line in lines %}
     <tr>
       <td>{{ line.purchase_number }}</td>
+      <td>{{ line.type }}</td>
+      <td>
+        {% if line.pax %}
+          {{ line.pax.first_name }} {{ line.pax.last_name }}
+        {% endif %}
+      </td>
       <td>{{ line.invoice.invoice_number }}</td>
       <td>{{ line.service_date }}</td>
+      <td class="text-end">{{ "%.2f"|format(line.base_fare or 0) }}</td>
+      <td class="text-end">{{ "%.2f"|format(line.tax or 0) }}</td>
+      <td class="text-end">{{ "%.2f"|format((line.base_fare or 0) + (line.tax or 0)) }}</td>
+      <td>{{ (line.designator or '') ~ (line.ticket_no or '') }}</td>
       <td>{{ line.supplier.business_name if line.supplier else '' }}</td>
-      <td class="text-end">{{ "%.2f"|format(line.sell_price) }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="5" class="text-center">No lines found.</td></tr>
+    <tr><td colspan="10" class="text-center">No lines found.</td></tr>
     {% endfor %}
   </tbody>
 </table>
