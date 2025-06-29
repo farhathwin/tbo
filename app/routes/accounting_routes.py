@@ -1023,7 +1023,11 @@ def journal_report():
             pass
 
     lines = (
-        query.options(joinedload(InvoiceLine.invoice), joinedload(InvoiceLine.supplier))
+        query.options(
+            joinedload(InvoiceLine.invoice),
+            joinedload(InvoiceLine.supplier),
+            joinedload(InvoiceLine.pax)
+        )
         .order_by(InvoiceLine.service_date.desc(), InvoiceLine.id.desc())
         .all()
     )
@@ -2231,9 +2235,6 @@ def add_invoice_line(invoice_id):
 
         tenant_session.add(line)
         tenant_session.commit()
-        if not line.purchase_number:
-            line.purchase_number = generate_purchase_number(invoice.id, line.id)
-            tenant_session.commit()
         flash("✅ Line item added", "success")
 
     except Exception as e:
