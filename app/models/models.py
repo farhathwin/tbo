@@ -347,6 +347,7 @@ class InvoiceLine(Base):
     tax = Column(Numeric(12, 2), default=0.00)
     sell_price = Column(Numeric(12, 2), nullable=False)
     profit = Column(Numeric(12, 2), default=0.00)
+    service_date = Column(Date, nullable=False)
 
     pnr = Column(String(50))   
     designator = Column(String(20))   

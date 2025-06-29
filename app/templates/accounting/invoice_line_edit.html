@@ -48,6 +48,10 @@
       <label>Profit</label>
       <input type="text" name="profit" id="profit" class="form-control" value="{{ '%.2f' % (line.profit or 0) }}" readonly>
     </div>
+    <div class="col-md-2">
+      <label>Service Date</label>
+      <input type="date" name="service_date" class="form-control" value="{{ line.service_date.strftime('%Y-%m-%d') if line.service_date }}" required>
+    </div>
     <div class="col-md-2 pnr-box">
       <label id="pnrLabel">PNR</label>
       <input type="text" name="pnr" class="form-control" value="{{ line.pnr }}">

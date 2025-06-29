@@ -2128,6 +2128,12 @@ def add_invoice_line(invoice_id):
         sell_price = Decimal(request.form.get('sell_price') or 0)
         profit = sell_price - (base_fare + tax) if type == 'Air Ticket' else sell_price - base_fare
         pnr = request.form.get('pnr')
+        service_date_str = request.form.get('service_date')
+        service_date = (
+            datetime.strptime(service_date_str, '%Y-%m-%d').date()
+            if service_date_str
+            else None
+        )
         designator = request.form.get('designator') if sub_type == 'IATA' else None
         ticket_no = request.form.get('ticket_no') if sub_type == 'IATA' else None
         supplier_id = request.form.get('supplier_id') or None
@@ -2166,6 +2172,7 @@ def add_invoice_line(invoice_id):
             tax=tax,
             sell_price=sell_price,
             profit=profit,
+            service_date=service_date,
             pnr=pnr,
             designator=designator,
             ticket_no=ticket_no,
@@ -2218,6 +2225,10 @@ def edit_invoice_line(line_id):
             line.sell_price = Decimal(request.form.get('sell_price') or 0)
             line.profit = line.sell_price - (line.base_fare + line.tax) if line.type == 'Air Ticket' else line.sell_price - line.base_fare
             line.pnr = request.form.get('pnr')
+            sd_str = request.form.get('service_date')
+            line.service_date = (
+                datetime.strptime(sd_str, '%Y-%m-%d').date() if sd_str else None
+            )
             line.designator = request.form.get('designator') if line.sub_type == 'IATA' else None
             new_ticket_no = request.form.get('ticket_no') if line.sub_type == 'IATA' else None
 
@@ -2295,6 +2306,8 @@ def validate_invoice_lines(invoice):
             return False, "Line item missing type or sub type."
         if not line.sell_price or not line.supplier_id:
             return False, "Missing sell price or supplier in a line item."
+        if not line.service_date:
+            return False, "Service date required for all line items."
 
         # Additional validations based on type
         if line.type == "Air Ticket":
