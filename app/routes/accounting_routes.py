@@ -14,6 +14,7 @@ import phonenumbers
 from phonenumbers import parse, is_valid_number, format_number, PhoneNumberFormat, NumberParseException
 from sqlalchemy.exc import SQLAlchemyError
 from decimal import Decimal
+from app.utils.currency_utils import get_company_currency
 import uuid
 
 from app.utils.email_utils import send_email
@@ -1246,6 +1247,7 @@ def add_opening_balance(customer_id):
     tenant_session = current_tenant_session()
     company_id = session['company_id']
     user_id = session.get("user_id")
+    default_currency = get_company_currency(tenant_session, company_id)
     today = date.today()
 
     try:
@@ -1817,6 +1819,7 @@ def invoice_list():
     tenant_session = current_tenant_session()
     company_id = session['company_id']
     user_id = session.get('user_id')
+    default_currency = get_company_currency(tenant_session, company_id)
 
     # Get the logged-in user's email (for default consultant selection)
     session_user = tenant_session.query(TenantUser).filter_by(id=user_id).first()
@@ -1842,7 +1845,7 @@ def invoice_list():
         staff_email = request.form.get('staff_email') or session_user_email
         destination = request.form.get('destination')
         due_term = request.form.get('due_term') or 0
-        currency = request.form.get('currency') or 'LKR'
+        currency = request.form.get('currency') or default_currency
 
         # ✅ Validate staff_email (must be a known user in company)
         staff = tenant_session.query(TenantUser).filter_by(
@@ -1901,7 +1904,8 @@ def invoice_list():
         staff_list=staff_list,
         staff_json=staff_json,
         current_date=date.today().isoformat(),
-        session_user_email=session_user_email
+        session_user_email=session_user_email,
+        default_currency=default_currency
     )
 
 
@@ -2673,7 +2677,8 @@ def customer_receipt():
         selected_customer=selected_customer,
         open_invoices=open_invoices,
         cash_bank_accounts=deposit_options,
-        current_date=date.today()
+        current_date=date.today(),
+        default_currency=default_currency
     )
 
 
@@ -2953,7 +2958,7 @@ def receipt_list():
         .all()
     )
 
-    return render_template('accounting/receipt_list.html', receipts=receipts)
+    return render_template('accounting/receipt_list.html', receipts=receipts, default_currency=default_currency)
 
 
 @accounting_routes.route('/receipts/reverse/<int:receipt_id>', methods=['POST'])

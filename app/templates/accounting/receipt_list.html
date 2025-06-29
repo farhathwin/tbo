@@ -19,7 +19,7 @@
       <td>{{ r.reference }}</td>
       <td>{{ r.receipt_date }}</td>
       <td>{{ r.customer.full_name or r.customer.business_name }}</td>
-      <td>{{ "{:,.2f}".format(r.total_amount) }}</td>
+      <td>{{ default_currency }} {{ "{:,.2f}".format(r.total_amount) }}</td>
       <td>
         {% if r.journal_entry.reversed_by %}
           <span class="badge bg-secondary">Reversed</span>

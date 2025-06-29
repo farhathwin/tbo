@@ -57,7 +57,7 @@
     </div>
     <div class="col-md-2">
       <label>Currency</label>
-      <input type="text" name="currency" class="form-control" value="LKR">
+      <input type="text" name="currency" class="form-control" value="{{ default_currency }}">
     </div>
     <div class="col-md-3">
       <label>Created Staff</label>
@@ -94,7 +94,7 @@
       <td>{{ invoice.invoice_date.strftime('%Y-%m-%d') }}</td>
       <td>{{ invoice.service_type }}</td>
       <td>{{ invoice.staff.email if invoice.staff else '-' }}</td>
-      <td>{{ "{:,.2f}".format(invoice.total_amount) }}</td>
+      <td>{{ invoice.currency }} {{ "{:,.2f}".format(invoice.total_amount) }}</td>
       <td><span class="badge bg-info">{{ invoice.status }}</span></td>
       <td>
         <a href="{{ url_for('accounting_routes.edit_invoice', invoice_id=invoice.id) }}" class="btn btn-sm btn-primary">Edit</a>

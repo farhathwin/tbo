@@ -125,11 +125,11 @@
 
   <div class="row">
     <div class="col-md-6">
-      <strong>Invoice Total:</strong> <span id="invoice_total">0.00</span>
+      <strong>Invoice Total:</strong> {{ default_currency }} <span id="invoice_total">0.00</span>
     </div>
     <div class="col-md-6 text-end">
       <strong>Unallocated Balance:</strong>
-      <span id="remaining_total" style="font-weight: bold;">0.00</span>
+      {{ default_currency }} <span id="remaining_total" style="font-weight: bold;">0.00</span>
     </div>
   </div>
 
