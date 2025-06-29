@@ -2518,6 +2518,7 @@ def customer_receipt():
     tenant_session = current_tenant_session()
     company_id = session['company_id']
     user_id = session.get("user_id")
+    default_currency = get_company_currency(tenant_session, company_id)
 
     customers = tenant_session.query(Customer).filter_by(is_active=True).all()
     selected_customer = None
@@ -2948,6 +2949,7 @@ def receipt_list():
 
     tenant_session = current_tenant_session()
     company_id = session['company_id']
+    default_currency = get_company_currency(tenant_session, company_id)
 
     receipts = (
         tenant_session.query(Receipt)
