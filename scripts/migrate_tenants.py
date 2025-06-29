@@ -40,13 +40,13 @@ def migrate_tenant(domain):
 
         try:
             version = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar()
-        except Exception:
+        except Exception:   
             version = None
 
         if version is None:
 
 
-        upgrade()
+         upgrade()
 
 
 if __name__ == "__main__":
