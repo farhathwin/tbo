@@ -6,6 +6,13 @@ from flask_session import Session
 from flask_migrate import Migrate
 import os
 
+# Absolute path to the repository root. This ensures that the default
+# SQLite database path is resolved correctly regardless of the current
+# working directory.
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
+os.makedirs(INSTANCE_DIR, exist_ok=True)
+
 db = SQLAlchemy()
 bcrypt = Bcrypt()
 mail = Mail()
@@ -17,8 +24,10 @@ def create_app(db_uri_override=None):
 
     # Main database config
     # Default to the central database stored under ``instance/app.db`` unless
-    # a different URI is provided at creation time.
-    default_db = 'sqlite:///instance/app.db'
+    # a different URI is provided at creation time. Construct an absolute
+    # path so the application can be executed from any directory.
+    default_db_path = os.path.join(INSTANCE_DIR, 'app.db')
+    default_db = f"sqlite:///{default_db_path}"
     app.config['SQLALCHEMY_DATABASE_URI'] = db_uri_override or default_db
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = 'your_secret_key_here'
