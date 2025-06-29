@@ -26,6 +26,18 @@
       background-color: #e9ecef;
     }
 
+    .sidebar .accordion-button {
+      background-color: transparent;
+      padding-left: 0;
+      font-size: 0.9rem;
+    }
+    .sidebar .accordion-item {
+      border: none;
+    }
+    .sidebar .accordion-body a {
+      padding: 4px 20px;
+    }
+
     /* Odoo like forms */
     form label {
       font-size: 0.875rem;
@@ -99,30 +111,97 @@
         <a href="{{ url_for('register_routes.user_list') }}">Users</a>
         <hr>
 
-        <strong class="ms-3 text-muted">Accounts</strong>
-        <a href="{{ url_for('accounting_routes.manage_fiscal_years') }}">Fiscal Years</a>
-        <a href="{{ url_for('account_type_routes.manage_account_types') }}">Accounts Type</a>
-        <a href="{{ url_for('accounting_routes.chart_of_accounts') }}">Chart of Accounts</a>
-        <a href="{{ url_for('accounting_routes.journal_entry') }}">Journal</a>
-        <a href="{{ url_for('accounting_routes.journal_list') }}">Journal List</a>
+        <div class="accordion accordion-flush" id="menuAccordion">
+          <!-- Accounts -->
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="accountsHeading">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAccounts" aria-expanded="false" aria-controls="collapseAccounts">
+                Accounts
+              </button>
+            </h2>
+            <div id="collapseAccounts" class="accordion-collapse collapse" aria-labelledby="accountsHeading" data-bs-parent="#menuAccordion">
+              <div class="accordion-body p-0">
+                <ul class="list-unstyled ms-3 my-2">
+                  <li><a href="{{ url_for('accounting_routes.manage_fiscal_years') }}" class="d-block py-1">Fiscal Years</a></li>
+                  <li><a href="{{ url_for('account_type_routes.manage_account_types') }}" class="d-block py-1">Accounts Type</a></li>
+                  <li><a href="{{ url_for('accounting_routes.chart_of_accounts') }}" class="d-block py-1">Chart of Accounts</a></li>
+                  <li><a href="{{ url_for('accounting_routes.journal_entry') }}" class="d-block py-1">Journal</a></li>
+                  <li><a href="{{ url_for('accounting_routes.journal_list') }}" class="d-block py-1">Journal List</a></li>
+                </ul>
+              </div>
+            </div>
+          </div>
 
-        <strong class="ms-3 text-muted">Customer</strong>
-        <a href="{{ url_for('accounting_routes.customer_list') }}">Customer</a>
-        <a href="{{ url_for('accounting_routes.invoice_list') }}">Invoice</a>
-        <a href="{{ url_for('accounting_routes.customer_receipt') }}">Customer Receipt</a>
-        <a href="{{ url_for('accounting_routes.receipt_list') }}">Receipt List</a>
-        <a href="{{ url_for('accounting_routes.allocate_unallocated_deposit') }}">Allocate Unallocated Deposit</a>
-        <a href="{{ url_for('accounting_routes.allocation_list') }}">Allocation List</a>
-        <a href="{{ url_for('accounting_routes.customer_outstanding') }}">Customer Outstanding</a>
+          <!-- Customer -->
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="customerHeading">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCustomer" aria-expanded="false" aria-controls="collapseCustomer">
+                Customer
+              </button>
+            </h2>
+            <div id="collapseCustomer" class="accordion-collapse collapse" aria-labelledby="customerHeading" data-bs-parent="#menuAccordion">
+              <div class="accordion-body p-0">
+                <ul class="list-unstyled ms-3 my-2">
+                  <li><a href="{{ url_for('accounting_routes.customer_list') }}" class="d-block py-1">Customer</a></li>
+                  <li><a href="{{ url_for('accounting_routes.invoice_list') }}" class="d-block py-1">Invoice</a></li>
+                  <li><a href="{{ url_for('accounting_routes.customer_receipt') }}" class="d-block py-1">Customer Receipt</a></li>
+                  <li><a href="{{ url_for('accounting_routes.receipt_list') }}" class="d-block py-1">Receipt List</a></li>
+                  <li><a href="{{ url_for('accounting_routes.allocate_unallocated_deposit') }}" class="d-block py-1">Allocate Unallocated Deposit</a></li>
+                  <li><a href="{{ url_for('accounting_routes.allocation_list') }}" class="d-block py-1">Allocation List</a></li>
+                  <li><a href="{{ url_for('accounting_routes.customer_outstanding') }}" class="d-block py-1">Customer Outstanding</a></li>
+                </ul>
+              </div>
+            </div>
+          </div>
 
-        <strong class="ms-3 text-muted">Supplier</strong>
-        <a href="{{ url_for('accounting_routes.supplier_list') }}">Supplier</a>
+          <!-- Supplier -->
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="supplierHeading">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSupplier" aria-expanded="false" aria-controls="collapseSupplier">
+                Supplier
+              </button>
+            </h2>
+            <div id="collapseSupplier" class="accordion-collapse collapse" aria-labelledby="supplierHeading" data-bs-parent="#menuAccordion">
+              <div class="accordion-body p-0">
+                <ul class="list-unstyled ms-3 my-2">
+                  <li><a href="{{ url_for('accounting_routes.supplier_list') }}" class="d-block py-1">Supplier</a></li>
+                </ul>
+              </div>
+            </div>
+          </div>
 
-        <strong class="ms-3 text-muted">Bank &amp; Cash</strong>
-        <a href="{{ url_for('accounting_routes.cash_bank_list') }}">Bank and Cash</a>
+          <!-- Bank & Cash -->
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="bankHeading">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBank" aria-expanded="false" aria-controls="collapseBank">
+                Bank &amp; Cash
+              </button>
+            </h2>
+            <div id="collapseBank" class="accordion-collapse collapse" aria-labelledby="bankHeading" data-bs-parent="#menuAccordion">
+              <div class="accordion-body p-0">
+                <ul class="list-unstyled ms-3 my-2">
+                  <li><a href="{{ url_for('accounting_routes.cash_bank_list') }}" class="d-block py-1">Bank and Cash</a></li>
+                </ul>
+              </div>
+            </div>
+          </div>
 
-        <strong class="ms-3 text-muted">Reporting</strong>
-        <a href="{{ url_for('accounting_routes.financial_reports') }}">Financial Reports</a>
+          <!-- Reporting -->
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="reportingHeading">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseReporting" aria-expanded="false" aria-controls="collapseReporting">
+                Reporting
+              </button>
+            </h2>
+            <div id="collapseReporting" class="accordion-collapse collapse" aria-labelledby="reportingHeading" data-bs-parent="#menuAccordion">
+              <div class="accordion-body p-0">
+                <ul class="list-unstyled ms-3 my-2">
+                  <li><a href="{{ url_for('accounting_routes.financial_reports') }}" class="d-block py-1">Financial Reports</a></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </nav>
 
