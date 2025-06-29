@@ -167,6 +167,10 @@
       <input type="text" name="profit" id="profit" class="form-control" value="0.00" readonly>
     </div>
     <div class="col-md-2">
+      <label>Service Date</label>
+      <input type="date" name="service_date" class="form-control" required>
+    </div>
+    <div class="col-md-2">
       <label id="pnrLabel">PNR / Ref</label>
       <input type="text" name="pnr" class="form-control">
     </div>
@@ -206,6 +210,7 @@
       <th>Tax</th>
       <th>Sell</th>
       <th>Profit</th>
+      <th>Service Date</th>
       <th>PNR / Ref</th>
       <th>Ticket No</th>
       <th>Supplier</th>
@@ -221,6 +226,7 @@
       <td>{{ "{:,.2f}".format(line.tax or 0) }}</td>
       <td>{{ "{:,.2f}".format(line.sell_price) }}</td>
       <td>{{ "{:,.2f}".format(line.profit or 0) }}</td>
+      <td>{{ line.service_date.strftime('%Y-%m-%d') if line.service_date }}</td>
       <td>{{ line.pnr }}</td>
       <td>{{ line.designator }}{{ line.ticket_no }}</td>
       <td>{{ line.supplier.business_name if line.supplier else '-' }}</td>
