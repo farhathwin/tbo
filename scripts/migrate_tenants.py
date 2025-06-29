@@ -6,11 +6,13 @@ from flask_migrate import Migrate, upgrade
 # Add parent directory to path so imports work
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from app import create_app, db  # ✅ FIXED
-from app.utils.database_utils import get_tenant_db_path
+from app.utils.database_utils import get_tenant_db_path, create_company_schema
 
 
 app = create_app()
-CENTRAL_DB_URI = "sqlite:///app.db"
+# Point to the central database that stores tenant domains. The file
+# lives under the application's ``instance`` folder.
+CENTRAL_DB_URI = "sqlite:///instance/app.db"
 
 
 def get_all_tenants():
@@ -21,7 +23,12 @@ def get_all_tenants():
 
 
 def migrate_tenant(domain):
-    db_uri = f"sqlite:///{get_tenant_db_path(domain)}"
+    db_path = get_tenant_db_path(domain)
+    if not os.path.exists(db_path):
+        # Ensure the tenant database exists before attempting migrations
+        create_company_schema(domain)
+
+    db_uri = f"sqlite:///{db_path}"
     print(f"🔁 Migrating tenant: {domain}")
     app = create_app(db_uri_override=db_uri)
     migrate = Migrate(app, db)
