@@ -1,0 +1,1 @@
+python scripts/migrate_tenants.py
