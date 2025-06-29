@@ -1,7 +1,7 @@
 import sys
 import os
 from sqlalchemy import text
-from flask_migrate import Migrate, upgrade
+from flask_migrate import Migrate, upgrade, stamp
 
 # Add parent directory to path so imports work
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -37,6 +37,15 @@ def migrate_tenant(domain):
     app = create_app(db_uri_override=db_uri)
     migrate = Migrate(app, db)
     with app.app_context():
+        # Stamp the database with the base revision if no version is recorded
+        try:
+            version = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar()
+        except Exception:
+            version = None
+
+        if version is None:
+            stamp(revision="df0745a851cf")
+
         upgrade()
 
 

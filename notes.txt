@@ -9,6 +9,16 @@
 3. Start the application:
    python main.py
 
+If migrations are re-initialized (e.g., you recreated the migrations
+folder), stamp each tenant database to the current revision before
+running the migration script:
+
+   FLASK_APP=main.py SQLALCHEMY_DATABASE_URI=sqlite:///tenant_dbs/<tenant>.db \
+       flask db stamp head
+
+The helper script automatically stamps a tenant database to the base
+revision (`df0745a851cf`) if it has no `alembic_version` entry.
+
 ## Resolving "no such column" errors
 If you see `sqlite3.OperationalError: no such column` after adding a new field like `email` to a model:
 1. Generate a migration describing the new field:
