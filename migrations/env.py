@@ -2,6 +2,8 @@ import logging
 from logging.config import fileConfig
 
 from flask import current_app
+from sqlalchemy import MetaData
+from app.models import Base
 
 from alembic import context
 
@@ -46,9 +48,17 @@ target_db = current_app.extensions['migrate'].db
 
 
 def get_metadata():
-    if hasattr(target_db, 'metadatas'):
-        return target_db.metadatas[None]
-    return target_db.metadata
+    """Merge Flask-SQLAlchemy and tenant metadata for autogenerate."""
+    main_meta = target_db.metadata
+    tenant_meta = Base.metadata
+
+    merged = MetaData()
+    for table in main_meta.tables.values():
+        table.tometadata(merged)
+    for table in tenant_meta.tables.values():
+        if table.name not in merged.tables:
+            table.tometadata(merged)
+    return merged
 
 
 def run_migrations_offline():
