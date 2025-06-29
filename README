@@ -50,3 +50,10 @@ if __name__ == '__main__':
    migrations.
 4. Once migrations complete you can start the application normally with
    `python main.py`.
+
+## Purchase numbers for invoice lines
+
+Invoice line items automatically receive a unique purchase number once
+they are created. The number uses the invoice and line IDs in the format
+`P0001XX` and is ensured again during invoice finalisation. This allows
+each line to be reconciled or processed for payment individually.
