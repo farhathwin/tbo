@@ -16,6 +16,7 @@ running the migration script:
    FLASK_APP=main.py SQLALCHEMY_DATABASE_URI=sqlite:///tenant_dbs/<tenant>.db \
        flask db stamp head
 
+
 ## Resolving "no such column" errors
 If you see `sqlite3.OperationalError: no such column` after adding a new field like `email` to a model:
 1. Generate a migration describing the new field:
