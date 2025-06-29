@@ -10,9 +10,13 @@ from app.utils.database_utils import get_tenant_db_path, create_company_schema
 
 
 app = create_app()
+# Determine the absolute path to the repository root so database files
+# can be resolved regardless of the current working directory.
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 # Point to the central database that stores tenant domains. The file
 # lives under the application's ``instance`` folder.
-CENTRAL_DB_URI = "sqlite:///instance/app.db"
+CENTRAL_DB_URI = f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'app.db')}"
 
 
 def get_all_tenants():

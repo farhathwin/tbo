@@ -4,6 +4,11 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from app import db
 from app.models import Base, TenantUser, TenantOTP, TenantUserInvite, Customer  # Ensure all models are imported!
 
+# Absolute path to the repository root. This allows database paths to be
+# resolved correctly even when scripts are executed from different
+# working directories.
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
 
 
 
@@ -13,9 +18,9 @@ COMPANY_DATABASES = {}  # domain => scoped_session instance
 
 
 def get_tenant_db_path(domain):
-    """Converts a domain like 'farhath.benztravels.com' to 'tenant_dbs/farhath_benztravels_com.db'."""
+    """Return the absolute path for a tenant's SQLite database."""
     db_name = domain.replace(".", "_")
-    return f"tenant_dbs/{db_name}.db"
+    return os.path.join(BASE_DIR, "tenant_dbs", f"{db_name}.db")
 
 def create_company_schema(domain):
     """
