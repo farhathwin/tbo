@@ -16,6 +16,8 @@ from app.models.models import (
     TenantUser,
     Receipt,
     SupplierReconciliation,
+    SupplierReconciliationLine,
+    SupplierPaymentDue,
     Expense,
     SupplierPayment,
 )
@@ -3332,28 +3334,101 @@ def supplier_reconcile():
 
     tenant_session = current_tenant_session()
     company_id = session['company_id']
-    suppliers = tenant_session.query(Supplier).filter_by(is_active=True).all()
+    suppliers = tenant_session.query(Supplier).filter_by(is_active=True, is_reconcilable=True).all()
 
     if request.method == 'POST':
+        action = request.form.get('action', 'save')
         supplier_id = int(request.form.get('supplier_id'))
         recon_date = datetime.strptime(request.form.get('recon_date'), '%Y-%m-%d').date()
-        amount = Decimal(request.form.get('amount', '0'))
         reference = request.form.get('reference') or None
         notes = request.form.get('notes') or None
+        line_ids = [int(i) for i in request.form.getlist('line_ids')]
+
+        lines = tenant_session.query(InvoiceLine).filter(InvoiceLine.id.in_(line_ids)).all()
+        total_amount = sum([(line.base_fare or 0) + (line.tax or 0) for line in lines])
 
         rec = SupplierReconciliation(
             supplier_id=supplier_id,
             recon_date=recon_date,
-            amount=amount,
+            amount=total_amount,
             reference=reference,
             notes=notes,
+            status='Reconciled' if action == 'reconcile' else 'Saved'
         )
         tenant_session.add(rec)
-        tenant_session.commit()
-        flash('✅ Reconciliation saved.', 'success')
-        return redirect(url_for('accounting_routes.supplier_reconcile'))
+        tenant_session.flush()
 
-    return render_template('accounting/supplier_reconcile.html', suppliers=suppliers, current_date=date.today())
+        for line in lines:
+            line.is_reconciled = True
+            tenant_session.add(SupplierReconciliationLine(
+                reconciliation_id=rec.id,
+                invoice_line_id=line.id,
+                amount=(line.base_fare or 0) + (line.tax or 0)
+            ))
+
+        if action == 'reconcile':
+            tenant_session.add(SupplierPaymentDue(
+                reconciliation_id=rec.id,
+                reference=reference,
+                amount=total_amount
+            ))
+
+        tenant_session.commit()
+        flash('✅ Reconciliation saved.' if action == 'save' else '✅ Reconciled and payment due created.', 'success')
+        return redirect(url_for('accounting_routes.supplier_reconciliation_list'))
+
+    supplier_id = request.args.get('supplier_id', type=int)
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    query = tenant_session.query(InvoiceLine).join(Invoice).filter(
+        Invoice.company_id == company_id
+    )
+    if supplier_id:
+        query = query.filter(InvoiceLine.supplier_id == supplier_id)
+    if start_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            query = query.filter(InvoiceLine.service_date >= start_date)
+        except ValueError:
+            start_date = None
+    else:
+        start_date = None
+    if end_date_str:
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            query = query.filter(InvoiceLine.service_date <= end_date)
+        except ValueError:
+            end_date = None
+    else:
+        end_date = None
+
+    lines = query.options(joinedload(InvoiceLine.invoice), joinedload(InvoiceLine.pax)).filter(InvoiceLine.is_reconciled == False).all()
+
+    return render_template(
+        'accounting/supplier_reconcile.html',
+        suppliers=suppliers,
+        lines=lines,
+        selected_supplier_id=supplier_id or '',
+        start_date=start_date_str or '',
+        end_date=end_date_str or '',
+        current_date=date.today()
+    )
+
+
+@accounting_routes.route('/suppliers/reconciliations')
+def supplier_reconciliation_list():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    recs = (
+        tenant_session.query(SupplierReconciliation)
+        .options(joinedload(SupplierReconciliation.supplier))
+        .order_by(SupplierReconciliation.recon_date.desc())
+        .all()
+    )
+    return render_template('accounting/supplier_reconciliation_list.html', recs=recs)
 
 
 @accounting_routes.route('/expenses/post', methods=['GET', 'POST'])

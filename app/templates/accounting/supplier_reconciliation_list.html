@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Supplier Reconciliations{% endblock %}
+{% block content %}
+<h3>Supplier Reconciliations</h3>
+<table class="table table-bordered table-sm">
+  <thead class="table-light">
+    <tr>
+      <th>ID</th>
+      <th>Supplier</th>
+      <th>Date</th>
+      <th class="text-end">Amount</th>
+      <th>Status</th>
+      <th>Reference</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for rec in recs %}
+    <tr>
+      <td>{{ rec.id }}</td>
+      <td>{{ rec.supplier.business_name }}</td>
+      <td>{{ rec.recon_date }}</td>
+      <td class="text-end">{{ '%.2f'|format(rec.amount) }}</td>
+      <td>{{ rec.status }}</td>
+      <td>{{ rec.reference or '' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="text-center">No reconciliations found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

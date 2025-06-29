@@ -358,10 +358,11 @@ class InvoiceLine(Base):
 
     purchase_number = Column(String(50))  
     income_account_id = Column(Integer, ForeignKey('accounts.id'))   
-    expense_account_id = Column(Integer, ForeignKey('accounts.id'))   
+    expense_account_id = Column(Integer, ForeignKey('accounts.id'))
     invoice = relationship("Invoice", back_populates="lines")
 
     created_at = Column(DateTime, default=datetime.utcnow)
+    is_reconciled = Column(Boolean, default=False)
 
 
 class PaxDetail(Base):
@@ -404,8 +405,34 @@ class SupplierReconciliation(Base):
     amount = Column(Numeric(12, 2), nullable=False)
     reference = Column(String)
     notes = Column(Text)
+    status = Column(String, default='Saved')
 
     supplier = relationship('Supplier')
+    lines = relationship('SupplierReconciliationLine', back_populates='reconciliation', cascade='all, delete-orphan')
+    payment_due = relationship('SupplierPaymentDue', uselist=False, back_populates='reconciliation')
+
+
+class SupplierReconciliationLine(Base):
+    __tablename__ = 'supplier_reconciliation_lines'
+
+    id = Column(Integer, primary_key=True)
+    reconciliation_id = Column(Integer, ForeignKey('supplier_reconciliations.id'), nullable=False)
+    invoice_line_id = Column(Integer, ForeignKey('invoice_lines.id'), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+
+    reconciliation = relationship('SupplierReconciliation', back_populates='lines')
+    invoice_line = relationship('InvoiceLine')
+
+
+class SupplierPaymentDue(Base):
+    __tablename__ = 'supplier_payment_dues'
+
+    id = Column(Integer, primary_key=True)
+    reconciliation_id = Column(Integer, ForeignKey('supplier_reconciliations.id'), nullable=False)
+    reference = Column(String)
+    amount = Column(Numeric(12, 2), nullable=False)
+
+    reconciliation = relationship('SupplierReconciliation', back_populates='payment_due')
 
 
 class Expense(Base):
