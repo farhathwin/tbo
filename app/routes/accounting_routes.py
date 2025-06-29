@@ -1104,6 +1104,7 @@ def view_customer(customer_id):
         deposit_balance=deposit_balance,
         transactions=transactions,
         current_date=date.today().isoformat(),
+        staff_json=[{"email": s.email} for s in tenant_session.query(TenantUser).filter_by(is_suspended=False, company_id=company_id).all()],
     )
 
 @accounting_routes.route('/customers/edit/<int:customer_id>', methods=['GET', 'POST'])
@@ -1365,6 +1366,49 @@ def toggle_customer_status(customer_id):
     tenant_session.commit()
 
     flash(f"✅ Customer {'enabled' if customer.is_active else 'disabled'} successfully.", "success")
+    return redirect(url_for('accounting_routes.view_customer', customer_id=customer_id))
+
+
+@accounting_routes.route('/customers/<int:customer_id>/update-settings', methods=['POST'])
+def update_customer_settings(customer_id):
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    customer = tenant_session.query(Customer).filter_by(id=customer_id).first()
+    if not customer:
+        flash('❌ Customer not found', 'danger')
+        return redirect(url_for('accounting_routes.customer_list'))
+
+    customer.email = request.form.get('email')
+    customer.address_line_1 = request.form.get('address_line_1')
+    customer.address_line_2 = request.form.get('address_line_2')
+    customer.city = request.form.get('city')
+    customer.country = request.form.get('country')
+
+    try:
+        customer.due_term = int(request.form.get('due_term') or 0)
+    except ValueError:
+        customer.due_term = 0
+
+    try:
+        customer.markup = float(request.form.get('markup') or 0)
+    except ValueError:
+        customer.markup = 0.0
+
+    consultant_email = request.form.get('staff_email')
+    if consultant_email:
+        staff = tenant_session.query(TenantUser).filter_by(
+            email=consultant_email,
+            company_id=session['company_id'],
+            is_suspended=False
+        ).first()
+        customer.consultant_id = staff.id if staff else None
+    else:
+        customer.consultant_id = None
+
+    tenant_session.commit()
+    flash('✅ Customer settings updated', 'success')
     return redirect(url_for('accounting_routes.view_customer', customer_id=customer_id))
 
 @accounting_routes.route('/suppliers', methods=['GET', 'POST'])
@@ -1884,7 +1928,15 @@ def invoice_list():
         {
             "id": c.id,
             "name": c.full_name or c.business_name,
-            "phone": c.phone_number
+            "phone": c.phone_number,
+            "due_term": c.due_term or 0,
+            "consultant_email": c.consultant.email if c.consultant else "",
+            "markup": c.markup or 0,
+            "email": c.email or "",
+            "address_line_1": c.address_line_1 or "",
+            "address_line_2": c.address_line_2 or "",
+            "city": c.city or "",
+            "country": c.country or "",
         }
         for c in customers
     ]
@@ -1976,6 +2028,14 @@ def edit_invoice(invoice_id):
             "id": c.id,
             "name": c.full_name or c.business_name,
             "phone": c.phone_number,
+            "due_term": c.due_term or 0,
+            "consultant_email": c.consultant.email if c.consultant else "",
+            "markup": c.markup or 0,
+            "email": c.email or "",
+            "address_line_1": c.address_line_1 or "",
+            "address_line_2": c.address_line_2 or "",
+            "city": c.city or "",
+            "country": c.country or "",
         }
         for c in customers
     ]
