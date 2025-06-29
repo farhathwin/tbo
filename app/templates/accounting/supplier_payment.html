@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Supplier Payment{% endblock %}
+{% block content %}
+<h3>Supplier Payment</h3>
+<form method="POST">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label>Supplier</label>
+      <select name="supplier_id" class="form-select" required>
+        {% for sup in suppliers %}
+        <option value="{{ sup.id }}">{{ sup.business_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label>Date</label>
+      <input type="date" name="payment_date" class="form-control" value="{{ current_date }}" required>
+    </div>
+    <div class="col-md-3">
+      <label>Amount</label>
+      <input type="number" step="0.01" name="amount" class="form-control" required>
+    </div>
+  </div>
+  <div class="row g-3 mt-2">
+    <div class="col-md-4">
+      <label>Pay From</label>
+      <select name="payment_account_id" class="form-select" required>
+        {% for cb in cash_banks %}
+        <option value="{{ cb.account_cashandbank_id }}">{{ cb.account_name or cb.bank_name }} ({{ cb.type }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label>Method</label>
+      <input type="text" name="payment_method" class="form-control">
+    </div>
+    <div class="col-md-4">
+      <input type="text" name="notes" class="form-control" placeholder="Notes">
+    </div>
+  </div>
+  <div class="mt-3">
+    <button type="submit" class="btn btn-primary">Record Payment</button>
+  </div>
+</form>
+{% endblock %}
