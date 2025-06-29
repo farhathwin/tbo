@@ -98,22 +98,31 @@
         <a href="{{ url_for('register_routes.dashboard') }}">Dashboard</a>
         <a href="{{ url_for('register_routes.user_list') }}">Users</a>
         <hr>
-        <strong class="ms-3 text-muted">Accounting</strong>
+
+        <strong class="ms-3 text-muted">Accounts</strong>
         <a href="{{ url_for('accounting_routes.manage_fiscal_years') }}">Fiscal Years</a>
         <a href="{{ url_for('account_type_routes.manage_account_types') }}">Accounts Type</a>
         <a href="{{ url_for('accounting_routes.chart_of_accounts') }}">Chart of Accounts</a>
         <a href="{{ url_for('accounting_routes.journal_entry') }}">Journal</a>
         <a href="{{ url_for('accounting_routes.journal_list') }}">Journal List</a>
-          <a href="{{ url_for('accounting_routes.customer_list') }}">Customer</a>
-          <a href="{{ url_for('accounting_routes.supplier_list') }}">Supplier</a>
-          <a href="{{ url_for('accounting_routes.cash_bank_list') }}">Bank And Cash</a>
+
+        <strong class="ms-3 text-muted">Customer</strong>
+        <a href="{{ url_for('accounting_routes.customer_list') }}">Customer</a>
         <a href="{{ url_for('accounting_routes.invoice_list') }}">Invoice</a>
-          <a href="{{ url_for('accounting_routes.customer_receipt') }}">Customer Receipt</a>
-          <a href="{{ url_for('accounting_routes.receipt_list') }}">Receipt List</a>
-          <a href="{{ url_for('accounting_routes.allocate_unallocated_deposit') }}">Allocate Unallocated Deposit</a>
-          <a href="{{ url_for('accounting_routes.allocation_list') }}">Allocation List</a>
-          <strong class="ms-3 text-muted">Reporting</strong>
-          <a href="{{ url_for('accounting_routes.financial_reports') }}">Financial Reports</a>
+        <a href="{{ url_for('accounting_routes.customer_receipt') }}">Customer Receipt</a>
+        <a href="{{ url_for('accounting_routes.receipt_list') }}">Receipt List</a>
+        <a href="{{ url_for('accounting_routes.allocate_unallocated_deposit') }}">Allocate Unallocated Deposit</a>
+        <a href="{{ url_for('accounting_routes.allocation_list') }}">Allocation List</a>
+        <a href="{{ url_for('accounting_routes.customer_outstanding') }}">Customer Outstanding</a>
+
+        <strong class="ms-3 text-muted">Supplier</strong>
+        <a href="{{ url_for('accounting_routes.supplier_list') }}">Supplier</a>
+
+        <strong class="ms-3 text-muted">Bank &amp; Cash</strong>
+        <a href="{{ url_for('accounting_routes.cash_bank_list') }}">Bank and Cash</a>
+
+        <strong class="ms-3 text-muted">Reporting</strong>
+        <a href="{{ url_for('accounting_routes.financial_reports') }}">Financial Reports</a>
       </div>
     </nav>
 
