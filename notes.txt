@@ -8,3 +8,11 @@
 
 3. Start the application:
    python main.py
+
+## Resolving "no such column" errors
+If you see `sqlite3.OperationalError: no such column` after adding a new field like `email` to a model:
+1. Generate a migration describing the new field:
+   flask db migrate -m "Add email to customers"
+2. Apply the migration for every tenant database:
+   python scripts/migrate_tenants.py
+3. Confirm the `customers` table now includes the `email` column in the tenant DB files under `tenant_dbs/`.
