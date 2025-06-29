@@ -1,8 +1,8 @@
-"""Add expenses table
+"""Add date colum
 
-Revision ID: 5317ad5f301d
+Revision ID: 3c6052849f71
 Revises: 
-Create Date: 2025-06-29 17:17:01.397198
+Create Date: 2025-06-29 18:00:55.917130
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '5317ad5f301d'
+revision = '3c6052849f71'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -283,6 +283,7 @@ def upgrade():
     sa.Column('tax', sa.Numeric(precision=12, scale=2), nullable=True),
     sa.Column('sell_price', sa.Numeric(precision=12, scale=2), nullable=False),
     sa.Column('profit', sa.Numeric(precision=12, scale=2), nullable=True),
+    sa.Column('service_date', sa.Date(), nullable=False),
     sa.Column('pnr', sa.String(length=50), nullable=True),
     sa.Column('designator', sa.String(length=20), nullable=True),
     sa.Column('ticket_no', sa.String(length=50), nullable=True),

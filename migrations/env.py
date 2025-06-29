@@ -1,8 +1,9 @@
 import logging
 from logging.config import fileConfig
-from app.models.models import Base
-from flask import current_app
 from sqlalchemy import MetaData
+from app.models import Base
+from flask import current_app
+
 from alembic import context
 
 # this is the Alembic Config object, which provides
@@ -56,6 +57,7 @@ def get_metadata():
         if table.name not in merged.tables:
             table.tometadata(merged)
     return merged
+
 
 def run_migrations_offline():
     """Run migrations in 'offline' mode.

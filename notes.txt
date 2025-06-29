@@ -16,3 +16,21 @@ If you see `sqlite3.OperationalError: no such column` after adding a new field l
 2. Apply the migration for every tenant database:
    python scripts/migrate_tenants.py
 3. Confirm the `customers` table now includes the `email` column in the tenant DB files under `tenant_dbs/`.
+
+
+
+# migrations/env.py
+from sqlalchemy import MetaData
+from app.models import Base
+
+def get_metadata():
+    main_meta = target_db.metadata
+    tenant_meta = Base.metadata
+
+    merged = MetaData()
+    for table in main_meta.tables.values():
+        table.tometadata(merged)
+    for table in tenant_meta.tables.values():
+        if table.name not in merged.tables:
+            table.tometadata(merged)
+    return merged
