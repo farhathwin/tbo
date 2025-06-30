@@ -39,7 +39,8 @@ def migrate_tenant(domain):
     db_uri = f"sqlite:///{db_path}"
     print(f"🔁 Migrating tenant: {domain}")
     app = create_app(db_uri_override=db_uri)
-    migrate = Migrate(app, db)
+    migrations_dir = os.path.join(BASE_DIR, "migrations")
+    migrate = Migrate(app, db, directory=migrations_dir)
     with app.app_context():
 
         try:
