@@ -3388,13 +3388,16 @@ def supplier_reconcile():
                 recon_date=recon_date,
             )
             tenant_session.add(rec)
-            tenant_session.flush()
 
         rec.amount = total_cost
         rec.statement_amount = statement_amount
         rec.reference = reference
         rec.notes = notes
         rec.status = 'Reconciled' if action == 'reconcile' else 'Saved'
+
+        # Flush after setting required fields so the INSERT does not violate
+        # NOT NULL constraints when creating a new reconciliation
+        tenant_session.flush()
 
         for line, supplier_amt, _line_total in line_data:
             line.is_reconciled = True
