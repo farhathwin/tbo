@@ -50,8 +50,10 @@ def migrate_tenant(domain):
 
         if version is None:
             # If the alembic_version table is missing, stamp the DB to the base
-            # revision so that initial tables are not recreated.
-            stamp(BASE_REVISION)
+            # revision so that initial tables are not recreated. The "revision"
+            # argument must be specified by keyword so the migration directory
+            # configured above is used.
+            stamp(revision=BASE_REVISION)
 
         upgrade()
 
