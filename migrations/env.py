@@ -1,8 +1,8 @@
 import logging
 from logging.config import fileConfig
-from sqlalchemy import MetaData
-from app.models import Base
+
 from flask import current_app
+
 from alembic import context
 
 # this is the Alembic Config object, which provides
@@ -46,16 +46,9 @@ target_db = current_app.extensions['migrate'].db
 
 
 def get_metadata():
-    main_meta = target_db.metadata
-    tenant_meta = Base.metadata
-
-    merged = MetaData()
-    for table in main_meta.tables.values():
-        table.tometadata(merged)
-    for table in tenant_meta.tables.values():
-        if table.name not in merged.tables:
-            table.tometadata(merged)
-    return merged
+    if hasattr(target_db, 'metadatas'):
+        return target_db.metadatas[None]
+    return target_db.metadata
 
 
 def run_migrations_offline():
