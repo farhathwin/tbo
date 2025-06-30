@@ -3445,7 +3445,69 @@ def supplier_reconcile():
         reference = rec.reference or ''
         statement_amount = rec.statement_amount
     else:
+        if not supplier_id:
+            lines = []
+            selected_supplier = None
+        else:
+            query = (
+                tenant_session.query(InvoiceLine)
+                .join(Invoice)
+                .filter(Invoice.company_id == company_id)
+                .filter(InvoiceLine.supplier_id == supplier_id)
+            )
 
+            if start_date_str:
+                try:
+                    start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+                    query = query.filter(InvoiceLine.service_date >= start_date)
+                except ValueError:
+                    start_date = None
+            else:
+                start_date = None
+
+            if end_date_str:
+                try:
+                    end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+                    query = query.filter(InvoiceLine.service_date <= end_date)
+                except ValueError:
+                    end_date = None
+            else:
+                end_date = None
+
+            lines = (
+                query.options(joinedload(InvoiceLine.invoice), joinedload(InvoiceLine.pax))
+                .filter(InvoiceLine.is_reconciled == False)
+                .all()
+            )
+        query = tenant_session.query(InvoiceLine).join(Invoice).filter(
+            Invoice.company_id == company_id
+        )
+        if supplier_id:
+            query = query.filter(InvoiceLine.supplier_id == supplier_id)
+        if start_date_str:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+                query = query.filter(InvoiceLine.service_date >= start_date)
+            except ValueError:
+                start_date = None
+        else:
+            start_date = None
+        if end_date_str:
+            try:
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+                query = query.filter(InvoiceLine.service_date <= end_date)
+            except ValueError:
+                end_date = None
+        else:
+            end_date = None
+
+        lines = (
+            query.options(joinedload(InvoiceLine.invoice), joinedload(InvoiceLine.pax))
+            .filter(InvoiceLine.is_reconciled == False)
+            .all()
+        )
+        selected_supplier = None
+        if supplier_id:
             selected_supplier = tenant_session.query(Supplier).get(supplier_id)
 
     return render_template(
@@ -3462,6 +3524,7 @@ def supplier_reconcile():
         reference=locals().get('reference', ''),
         statement_amount=locals().get('statement_amount', 0),
     )
+
 
 
 @accounting_routes.route('/suppliers/reconciliations')
