@@ -8,9 +8,6 @@
       <th>ID</th>
       <th>Supplier</th>
       <th>Date</th>
-
-      <th>Status</th>
-      <th>Reference</th>
     </tr>
   </thead>
   <tbody>
@@ -20,11 +17,6 @@
       <td>{{ rec.supplier.business_name }}</td>
       <td>{{ rec.recon_date }}</td>
       <td class="text-end">{{ '%.2f'|format(rec.amount) }}</td>
-
-      <td>{{ rec.status }}</td>
-      <td>{{ rec.reference or '' }}</td>
-    </tr>
-    {% else %}
 
     {% endfor %}
   </tbody>
