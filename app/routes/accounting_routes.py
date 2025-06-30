@@ -3819,3 +3819,96 @@ def supplier_payment():
         cash_banks_info=[{'id': cb.account_cashandbank_id, 'type': cb.type, 'supplier_id': cb.supplier_id} for cb in cash_banks],
         current_date=date.today(),
     )
+
+
+@accounting_routes.route('/suppliers/payments', methods=['GET'])
+def supplier_payment_list():
+    """List supplier payments."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    payments = (
+        tenant_session.query(SupplierPayment)
+        .join(Supplier, SupplierPayment.supplier_id == Supplier.id)
+        .filter(Supplier.company_id == company_id)
+        .order_by(SupplierPayment.id.desc())
+        .all()
+    )
+
+    return render_template('accounting/supplier_payment_list.html', payments=payments)
+
+
+@accounting_routes.route('/suppliers/payment/view/<int:payment_id>')
+def view_supplier_payment(payment_id):
+    """Display a single supplier payment."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    payment = (
+        tenant_session.query(SupplierPayment)
+        .join(Supplier, SupplierPayment.supplier_id == Supplier.id)
+        .join(JournalEntry, SupplierPayment.journal_entry_id == JournalEntry.id)
+        .options(
+            joinedload(SupplierPayment.supplier),
+            joinedload(SupplierPayment.journal_entry).joinedload(JournalEntry.lines).joinedload(JournalLine.account),
+        )
+        .filter(SupplierPayment.id == payment_id, Supplier.company_id == company_id)
+        .first()
+    )
+
+    if not payment:
+        flash('❌ Payment not found.', 'danger')
+        return redirect(url_for('accounting_routes.supplier_payment_list'))
+
+    company = tenant_session.query(CompanyProfile).filter_by(company_id=company_id).first()
+
+    return render_template('accounting/supplier_payment_detail.html', payment=payment, company=company)
+
+
+@accounting_routes.route('/suppliers/payment/pdf/<int:payment_id>')
+def supplier_payment_pdf(payment_id):
+    """Generate a PDF for a supplier payment."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    payment = (
+        tenant_session.query(SupplierPayment)
+        .join(Supplier, SupplierPayment.supplier_id == Supplier.id)
+        .join(JournalEntry, SupplierPayment.journal_entry_id == JournalEntry.id)
+        .options(
+            joinedload(SupplierPayment.supplier),
+            joinedload(SupplierPayment.journal_entry).joinedload(JournalEntry.lines).joinedload(JournalLine.account),
+        )
+        .filter(SupplierPayment.id == payment_id, Supplier.company_id == company_id)
+        .first()
+    )
+
+    if not payment:
+        flash('❌ Payment not found.', 'danger')
+        return redirect(url_for('accounting_routes.supplier_payment_list'))
+
+    company = tenant_session.query(CompanyProfile).filter_by(company_id=company_id).first()
+
+    html = render_template('accounting/supplier_payment_pdf.html', payment=payment, company=company)
+
+    pdf = BytesIO()
+    pisa_status = pisa.CreatePDF(html, dest=pdf)
+    if pisa_status.err:
+        return 'PDF generation error', 500
+
+    pdf.seek(0)
+    response = make_response(pdf.read())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = (
+        f'attachment; filename=payment_{payment.reference}.pdf'
+    )
+    return response

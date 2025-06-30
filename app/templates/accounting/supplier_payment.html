@@ -6,7 +6,7 @@
   <div class="row g-3">
     <div class="col-md-4">
       <label>Pay From</label>
-      <select name="payment_account_id" id="payment_account_id" class="form-select" required onchange="document.getElementById('supplierForm').submit();">
+      <select name="payment_account_id" id="payment_account_id" class="form-select" required onchange="onAccountChange();">
         <option value="">-- Select --</option>
         {% for cb in cash_banks %}
         <option value="{{ cb.account_cashandbank_id }}" data-type="{{ cb.type }}" data-supplier="{{ cb.supplier_id or '' }}" {% if selected_account and cb.account_cashandbank_id == selected_account.account_cashandbank_id %}selected{% endif %}>
@@ -43,8 +43,18 @@
       <input type="number" step="0.01" name="total_amount" id="total_paid" class="form-control">
     </div>
     <div class="col-md-3">
-      <label>Method</label>
-      <input type="text" name="payment_method" class="form-control">
+      <label>Payment Method</label>
+      <select name="payment_method" id="payment_method" class="form-select" required onchange="toggleChequeField();">
+        <option value="">-- Select --</option>
+        <option value="Cash">Cash</option>
+        <option value="Bank Transfer">Bank Transfer</option>
+        <option value="Bank Deposit">Bank Deposit</option>
+        <option value="Cheque">Cheque</option>
+      </select>
+    </div>
+    <div class="col-md-3" id="chequeField" style="display:none;">
+      <label>Cheque Number</label>
+      <input type="text" name="payment_ref" class="form-control">
     </div>
     <div class="col-md-3">
       <label>Notes</label>
@@ -79,6 +89,8 @@
 const cashInfo = {{ cash_banks_info|tojson }};
 const accSelect = document.getElementById('payment_account_id');
 const supplierSelect = document.getElementById('supplier_id');
+const paymentMethod = document.getElementById('payment_method');
+const chequeField = document.getElementById('chequeField');
 
 function filterSuppliers() {
   const selected = cashInfo.find(a => a.id == accSelect.value);
@@ -93,8 +105,32 @@ function filterSuppliers() {
     supplierSelect.value = selected.supplier_id;
   }
 }
-accSelect.addEventListener('change', filterSuppliers);
-window.addEventListener('load', filterSuppliers);
+function updateChequeOption(){
+  const selected = cashInfo.find(a => a.id == accSelect.value);
+  const chequeOpt = paymentMethod.querySelector('option[value="Cheque"]');
+  if(selected && selected.type === 'Bank'){
+    chequeOpt.style.display = '';
+  } else {
+    if(paymentMethod.value === 'Cheque'){
+      paymentMethod.value = '';
+      chequeField.style.display = 'none';
+    }
+    chequeOpt.style.display = 'none';
+  }
+}
+
+function toggleChequeField(){
+  const selected = cashInfo.find(a => a.id == accSelect.value);
+  chequeField.style.display = (paymentMethod.value === 'Cheque' && selected && selected.type === 'Bank') ? 'block' : 'none';
+}
+
+function onAccountChange(){
+  filterSuppliers();
+  updateChequeOption();
+  document.getElementById('supplierForm').submit();
+}
+
+window.addEventListener('load', () => { filterSuppliers(); updateChequeOption(); });
 
 document.getElementById('total_paid')?.addEventListener('input', function(){
   let remaining = parseFloat(this.value) || 0;
