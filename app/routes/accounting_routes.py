@@ -3360,11 +3360,10 @@ def supplier_reconcile():
         tenant_session.flush()
 
 
-            line.is_reconciled = True
+        line.is_reconciled = True
             tenant_session.add(SupplierReconciliationLine(
                 reconciliation_id=rec.id,
                 invoice_line_id=line.id,
-
             ))
 
         if action == 'reconcile':
