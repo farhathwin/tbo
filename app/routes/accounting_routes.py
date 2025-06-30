@@ -1956,6 +1956,66 @@ def get_supplier_balance(session, company_id, supplier):
 
     return Decimal(str(credit_total)) - Decimal(str(debit_total))
 
+
+def get_supplier_dues(session, company_id, supplier):
+    """Return payable items for a supplier."""
+    from decimal import Decimal
+
+    if supplier.is_reconcilable:
+        dues = (
+            session.query(SupplierPaymentDue)
+            .join(SupplierReconciliation)
+            .filter(SupplierReconciliation.supplier_id == supplier.id)
+            .all()
+        )
+        return [
+            {
+                "id": due.id,
+                "reference": due.reference,
+                "date": due.reconciliation.recon_date,
+                "amount": due.amount,
+            }
+            for due in dues
+        ]
+
+    if supplier.supplier_type == "Expenses":
+        expenses = session.query(Expense).filter_by(
+            company_id=company_id, supplier_id=supplier.id
+        ).all()
+        return [
+            {
+                "id": f"EXP-{e.id}",
+                "reference": e.description or "Expense",
+                "date": e.expense_date,
+                "amount": e.amount,
+            }
+            for e in expenses
+        ]
+
+    lines = (
+        session.query(InvoiceLine)
+        .join(Invoice)
+        .filter(
+            Invoice.company_id == company_id,
+            Invoice.status == "Finalised",
+            InvoiceLine.supplier_id == supplier.id,
+            InvoiceLine.is_reconciled == False,
+        )
+        .all()
+    )
+    items = []
+    for line in lines:
+        amt = Decimal(str(line.base_fare or 0)) + Decimal(str(line.tax or 0))
+        items.append(
+            {
+                "id": line.id,
+                "reference": line.invoice.invoice_number,
+                "date": line.invoice.invoice_date,
+                "amount": amt,
+            }
+        )
+    return items
+
 @accounting_routes.route('/invoices', methods=['GET', 'POST'])
 def invoice_list():
     if 'domain' not in session or 'company_id' not in session:
@@ -3627,88 +3687,121 @@ def supplier_payment():
     suppliers = tenant_session.query(Supplier).filter_by(is_active=True).all()
     cash_banks = tenant_session.query(CashBank).filter(
         CashBank.company_id == company_id,
-        CashBank.type.in_(['Cash', 'Bank']),
+        CashBank.type.in_(['Cash', 'Bank', 'Wallet']),
         CashBank.is_active == True,
     ).all()
 
+    selected_supplier = None
+    selected_account = None
+    due_items = []
+
     if request.method == 'POST':
-        supplier_id = int(request.form.get('supplier_id'))
-        payment_account_id = int(request.form.get('payment_account_id'))
-        payment_method = request.form.get('payment_method')
-        payment_date = datetime.strptime(request.form.get('payment_date'), '%Y-%m-%d').date()
-        notes = request.form.get('notes') or None
-        amount = Decimal(request.form.get('amount', '0'))
+        if 'submit_payment' in request.form:
+            supplier_id = int(request.form.get('supplier_id'))
+            payment_account_id = int(request.form.get('payment_account_id'))
+            payment_method = request.form.get('payment_method')
+            payment_date = datetime.strptime(request.form.get('payment_date'), '%Y-%m-%d').date()
+            notes = request.form.get('notes') or None
 
-        supplier = tenant_session.query(Supplier).filter_by(id=supplier_id).first()
-        if not supplier:
-            flash('❌ Supplier not found.', 'danger')
-            return redirect(request.url)
-
-        if supplier.supplier_type in ['BSP', 'Airlines']:
-            has_rec = tenant_session.query(SupplierReconciliation).filter_by(supplier_id=supplier_id).first()
-            if not has_rec:
-                flash('❌ Reconciliation required before payment for this supplier.', 'danger')
+            supplier = tenant_session.query(Supplier).filter_by(id=supplier_id).first()
+            if not supplier:
+                flash('❌ Supplier not found.', 'danger')
                 return redirect(request.url)
 
-        if supplier.supplier_type == 'Expenses':
-            has_exp = tenant_session.query(Expense).filter_by(supplier_id=supplier_id).first()
-            if not has_exp:
-                flash('❌ Please post expenses before paying this supplier.', 'danger')
+            selected_account = tenant_session.query(CashBank).filter_by(account_cashandbank_id=payment_account_id, company_id=company_id).first()
+            if selected_account and selected_account.type == 'Wallet' and selected_account.supplier_id != supplier.id:
+                flash('❌ This wallet is not assigned to the selected supplier.', 'danger')
                 return redirect(request.url)
 
-        fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=True).first()
-        if not fiscal_year:
-            flash('⚠️ Active fiscal year not found.', 'danger')
-            return redirect(request.url)
+            if supplier.supplier_type in ['BSP', 'Airlines']:
+                has_rec = tenant_session.query(SupplierReconciliation).filter_by(supplier_id=supplier_id).first()
+                if not has_rec:
+                    flash('❌ Reconciliation required before payment for this supplier.', 'danger')
+                    return redirect(request.url)
 
-        reference = generate_supplier_payment_number(tenant_session)
+            if supplier.supplier_type == 'Expenses':
+                has_exp = tenant_session.query(Expense).filter_by(supplier_id=supplier_id).first()
+                if not has_exp:
+                    flash('❌ Please post expenses before paying this supplier.', 'danger')
+                    return redirect(request.url)
 
-        entry = JournalEntry(
-            company_id=company_id,
-            date=payment_date,
-            reference=reference,
-            narration=f'Supplier Payment - {supplier.business_name}',
-            fiscal_year_id=fiscal_year.id,
-            created_by=user_id,
-        )
-        tenant_session.add(entry)
-        tenant_session.flush()
+            fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=True).first()
+            if not fiscal_year:
+                flash('⚠️ Active fiscal year not found.', 'danger')
+                return redirect(request.url)
 
-        tenant_session.add_all([
-            JournalLine(
-                entry_id=entry.id,
-                account_id=supplier.account_payable_id,
-                debit=amount,
-                narration='Supplier Payment',
-                partner_id=supplier.id,
-            ),
-            JournalLine(
-                entry_id=entry.id,
+            reference = generate_supplier_payment_number(tenant_session)
+
+            total_amount = Decimal('0.00')
+            for k, v in request.form.items():
+                if k.startswith('pay_item_'):
+                    total_amount += Decimal(v or '0')
+
+            if total_amount <= 0:
+                flash('❌ No payment amount entered.', 'danger')
+                return redirect(request.url)
+
+            entry = JournalEntry(
+                company_id=company_id,
+                date=payment_date,
+                reference=reference,
+                narration=f'Supplier Payment - {supplier.business_name}',
+                fiscal_year_id=fiscal_year.id,
+                created_by=user_id,
+            )
+            tenant_session.add(entry)
+            tenant_session.flush()
+
+            tenant_session.add_all([
+                JournalLine(
+                    entry_id=entry.id,
+                    account_id=supplier.account_payable_id,
+                    debit=total_amount,
+                    narration='Supplier Payment',
+                    partner_id=supplier.id,
+                ),
+                JournalLine(
+                    entry_id=entry.id,
+                    account_id=payment_account_id,
+                    credit=total_amount,
+                    narration='Supplier Payment',
+                ),
+            ])
+
+            pay = SupplierPayment(
+                supplier_id=supplier.id,
+                company_id=company_id,
+                payment_date=payment_date,
+                payment_method=payment_method,
+                reference=reference,
+                notes=notes,
+                total_amount=total_amount,
                 account_id=payment_account_id,
-                credit=amount,
-                narration='Supplier Payment',
-            ),
-        ])
+                journal_entry_id=entry.id,
+            )
+            tenant_session.add(pay)
+            tenant_session.commit()
+            flash('✅ Supplier payment recorded.', 'success')
+            return redirect(url_for('accounting_routes.supplier_payment'))
 
-        pay = SupplierPayment(
-            supplier_id=supplier.id,
-            company_id=company_id,
-            payment_date=payment_date,
-            payment_method=payment_method,
-            reference=reference,
-            notes=notes,
-            total_amount=amount,
-            account_id=payment_account_id,
-            journal_entry_id=entry.id,
-        )
-        tenant_session.add(pay)
-        tenant_session.commit()
-        flash('✅ Supplier payment recorded.', 'success')
-        return redirect(url_for('accounting_routes.supplier_payment'))
+        else:
+            supplier_id = request.form.get('supplier_id')
+            account_id = request.form.get('payment_account_id')
+            if supplier_id and supplier_id.isdigit():
+                selected_supplier = tenant_session.query(Supplier).filter_by(id=int(supplier_id)).first()
+            if account_id and account_id.isdigit():
+                selected_account = tenant_session.query(CashBank).filter_by(account_cashandbank_id=int(account_id), company_id=company_id).first()
+
+    if selected_supplier:
+        due_items = get_supplier_dues(tenant_session, company_id, selected_supplier)
 
     return render_template(
         'accounting/supplier_payment.html',
         suppliers=suppliers,
         cash_banks=cash_banks,
+        selected_supplier=selected_supplier,
+        selected_account=selected_account,
+        due_items=due_items,
+        cash_banks_info=[{'id': cb.account_cashandbank_id, 'type': cb.type, 'supplier_id': cb.supplier_id} for cb in cash_banks],
         current_date=date.today(),
     )
