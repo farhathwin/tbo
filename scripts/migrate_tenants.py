@@ -14,6 +14,10 @@ app = create_app()
 # can be resolved regardless of the current working directory.
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+# Base revision for initial tenant schema. If a tenant database doesn't have
+# an Alembic version, we stamp it with this revision before upgrading.
+BASE_REVISION = "df0745a851cf"
+
 # Point to the central database that stores tenant domains. The file
 # lives under the application's ``instance`` folder.
 CENTRAL_DB_URI = f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'app.db')}"
@@ -40,13 +44,15 @@ def migrate_tenant(domain):
 
         try:
             version = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar()
-        except Exception:   
+        except Exception:
             version = None
 
         if version is None:
+            # If the alembic_version table is missing, stamp the DB to the base
+            # revision so that initial tables are not recreated.
+            stamp(BASE_REVISION)
 
-
-         upgrade()
+        upgrade()
 
 
 if __name__ == "__main__":
