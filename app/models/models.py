@@ -419,6 +419,8 @@ class SupplierReconciliationLine(Base):
     id = Column(Integer, primary_key=True)
     reconciliation_id = Column(Integer, ForeignKey('supplier_reconciliations.id'), nullable=False)
     invoice_line_id = Column(Integer, ForeignKey('invoice_lines.id'), nullable=False)
+    # amount payable to the supplier for this line item
+    supplier_amount = Column('amount', Numeric(12, 2), nullable=False)
     reconciliation = relationship('SupplierReconciliation', back_populates='lines')
     invoice_line = relationship('InvoiceLine')
 
