@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Payment {{ payment.reference }}{% endblock %}
+{% block content %}
+<div class="container my-4" id="payment-area">
+  <div class="text-center">
+    <h4>{{ company.trading_name or company.company_name }}</h4>
+    <p class="mb-0">{{ company.address_line_1 }} {{ company.address_line_2 }} {{ company.city }}</p>
+    <p>☎ {{ company.phone }}</p>
+    <h5 class="mt-3">Supplier Payment</h5>
+  </div>
+  <hr>
+  <p><strong>Payment No:</strong> {{ payment.reference }}</p>
+  <p><strong>Date:</strong> {{ payment.payment_date }}</p>
+  <p><strong>Supplier:</strong> {{ payment.supplier.business_name }}</p>
+  <p><strong>Payment Method:</strong> {{ payment.payment_method }}{% if payment.notes %} ({{ payment.notes }}){% endif %}</p>
+  <p><strong>Total Paid:</strong> {{ company.currency_code }} {{ "{:,.2f}".format(payment.total_amount) }}</p>
+  <div class="mt-4">
+    <a href="{{ url_for('accounting_routes.supplier_payment_pdf', payment_id=payment.id) }}" class="btn btn-primary btn-sm">Download PDF</a>
+    <button onclick="window.print()" class="btn btn-secondary btn-sm">Print</button>
+    <a href="{{ url_for('accounting_routes.supplier_payment_list') }}" class="btn btn-outline-secondary btn-sm">Back</a>
+  </div>
+</div>
+{% endblock %}

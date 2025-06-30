@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Supplier Payments{% endblock %}
+{% block content %}
+<h3>Supplier Payments</h3>
+<table class="table table-bordered table-sm">
+  <thead class="table-light">
+    <tr>
+      <th>Reference</th>
+      <th>Date</th>
+      <th>Supplier</th>
+      <th class="text-end">Amount</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in payments %}
+    <tr>
+      <td>{{ p.reference }}</td>
+      <td>{{ p.payment_date }}</td>
+      <td>{{ p.supplier.business_name }}</td>
+      <td class="text-end">{{ '%.2f'|format(p.total_amount) }}</td>
+      <td>
+        <a href="{{ url_for('accounting_routes.view_supplier_payment', payment_id=p.id) }}" class="btn btn-primary btn-sm">View</a>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="text-center text-muted">No payments found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
