@@ -402,8 +402,9 @@ class SupplierReconciliation(Base):
     id = Column(Integer, primary_key=True)
     supplier_id = Column(Integer, ForeignKey('suppliers.id'), nullable=False)
     recon_date = Column(Date, nullable=False)
-    amount = Column(Numeric(12, 2), nullable=False)
-    reference = Column(String)
+    amount = Column(Numeric(12, 2), nullable=False)  # total cost of selected lines
+    statement_amount = Column(Numeric(12, 2), nullable=False)
+    reference = Column(String)  # invoice/statement number
     notes = Column(Text)
     status = Column(String, default='Saved')
 
@@ -418,8 +419,6 @@ class SupplierReconciliationLine(Base):
     id = Column(Integer, primary_key=True)
     reconciliation_id = Column(Integer, ForeignKey('supplier_reconciliations.id'), nullable=False)
     invoice_line_id = Column(Integer, ForeignKey('invoice_lines.id'), nullable=False)
-    amount = Column(Numeric(12, 2), nullable=False)
-
     reconciliation = relationship('SupplierReconciliation', back_populates='lines')
     invoice_line = relationship('InvoiceLine')
 

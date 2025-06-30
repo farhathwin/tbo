@@ -3341,16 +3341,17 @@ def supplier_reconcile():
         supplier_id = int(request.form.get('supplier_id'))
         recon_date = datetime.strptime(request.form.get('recon_date'), '%Y-%m-%d').date()
         reference = request.form.get('reference') or None
+        statement_amount = Decimal(request.form.get('statement_amount', '0'))
         notes = request.form.get('notes') or None
         line_ids = [int(i) for i in request.form.getlist('line_ids')]
 
         lines = tenant_session.query(InvoiceLine).filter(InvoiceLine.id.in_(line_ids)).all()
-        total_amount = sum([(line.base_fare or 0) + (line.tax or 0) for line in lines])
+
 
         rec = SupplierReconciliation(
             supplier_id=supplier_id,
             recon_date=recon_date,
-            amount=total_amount,
+
             reference=reference,
             notes=notes,
             status='Reconciled' if action == 'reconcile' else 'Saved'
@@ -3358,19 +3359,19 @@ def supplier_reconcile():
         tenant_session.add(rec)
         tenant_session.flush()
 
-        for line in lines:
+
             line.is_reconciled = True
             tenant_session.add(SupplierReconciliationLine(
                 reconciliation_id=rec.id,
                 invoice_line_id=line.id,
-                amount=(line.base_fare or 0) + (line.tax or 0)
+
             ))
 
         if action == 'reconcile':
             tenant_session.add(SupplierPaymentDue(
                 reconciliation_id=rec.id,
                 reference=reference,
-                amount=total_amount
+
             ))
 
         tenant_session.commit()
@@ -3405,11 +3406,13 @@ def supplier_reconcile():
 
     lines = query.options(joinedload(InvoiceLine.invoice), joinedload(InvoiceLine.pax)).filter(InvoiceLine.is_reconciled == False).all()
 
+
     return render_template(
         'accounting/supplier_reconcile.html',
         suppliers=suppliers,
         lines=lines,
         selected_supplier_id=supplier_id or '',
+
         start_date=start_date_str or '',
         end_date=end_date_str or '',
         current_date=date.today()

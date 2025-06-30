@@ -3,6 +3,7 @@
 {% block content %}
 <h3>Supplier Reconciliation</h3>
 
+
 <form method="get" class="row g-3 mb-3">
   <div class="col-md-4">
     <label>Supplier</label>
@@ -26,47 +27,7 @@
   </div>
 </form>
 
-<form method="post">
-  <input type="hidden" name="supplier_id" value="{{ selected_supplier_id }}">
-  <input type="hidden" name="recon_date" value="{{ current_date }}">
-  <table class="table table-sm table-bordered">
-    <thead class="table-light">
-      <tr>
-        <th></th>
-        <th>Purchase #</th>
-        <th>Passenger</th>
-        <th>Invoice #</th>
-        <th>Ticket #</th>
-        <th>Service Date</th>
-        <th class="text-end">Base Fare</th>
-        <th class="text-end">Tax</th>
-        <th class="text-end">Total Cost</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for line in lines %}
-      <tr>
-        <td><input type="checkbox" name="line_ids" value="{{ line.id }}"></td>
-        <td>{{ line.purchase_number }}</td>
-        <td>{{ line.pax.first_name }} {{ line.pax.last_name }}</td>
-        <td>{{ line.invoice.invoice_number }}</td>
-        <td>{{ line.ticket_no }}</td>
-        <td>{{ line.service_date }}</td>
-        <td class="text-end">{{ '%.2f'|format(line.base_fare or 0) }}</td>
-        <td class="text-end">{{ '%.2f'|format(line.tax or 0) }}</td>
-        <td class="text-end">{{ '%.2f'|format((line.base_fare or 0)+(line.tax or 0)) }}</td>
-      </tr>
-      {% else %}
-      <tr><td colspan="9" class="text-center">No lines found.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
 
-  <div class="row g-3">
-    <div class="col-md-3">
-      <label>Reference</label>
-      <input type="text" name="reference" class="form-control">
-    </div>
     <div class="col-md-6">
       <textarea name="notes" class="form-control" placeholder="Notes"></textarea>
     </div>
@@ -76,4 +37,53 @@
     </div>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function calc() {
+  let totalCost = 0;
+  let totalSupplier = 0;
+  document.querySelectorAll('.line-check').forEach(cb => {
+    const id = cb.value;
+    const costEl = document.querySelector('.total-cost[data-line="' + id + '"]');
+    const supEl = document.querySelector('.supplier-amount[data-line="' + id + '"]');
+    const discEl = document.querySelector('.discrepancy[data-line="' + id + '"]');
+    const cost = parseFloat(costEl.textContent) || 0;
+    const supplierAmt = parseFloat(supEl.value) || 0;
+    if (cb.checked) {
+      totalCost += cost;
+      totalSupplier += supplierAmt;
+    }
+    const diff = (cost - supplierAmt).toFixed(2);
+    discEl.textContent = diff;
+    discEl.classList.remove('text-success','text-danger');
+    if (diff > 0) discEl.classList.add('text-success');
+    else if (diff < 0) discEl.classList.add('text-danger');
+  });
+  const discTotal = (totalCost - totalSupplier).toFixed(2);
+  document.getElementById('totalCost').textContent = totalCost.toFixed(2);
+  document.getElementById('totalSupplier').textContent = totalSupplier.toFixed(2);
+  const discEl = document.getElementById('totalDisc');
+  discEl.textContent = discTotal;
+  discEl.classList.remove('text-success','text-danger');
+  if (discTotal > 0) discEl.classList.add('text-success');
+  else if (discTotal < 0) discEl.classList.add('text-danger');
+}
+
+document.querySelectorAll('.supplier-amount, .line-check').forEach(el => {
+  el.addEventListener('input', calc);
+});
+window.addEventListener('load', calc);
+
+document.getElementById('reconForm').addEventListener('submit', function(e) {
+  if (e.submitter && e.submitter.value === 'reconcile') {
+    calc();
+    if (parseFloat(document.getElementById('totalDisc').textContent) !== 0) {
+      e.preventDefault();
+      alert('Discrepancies must be zero to reconcile');
+    }
+  }
+});
+</script>
 {% endblock %}

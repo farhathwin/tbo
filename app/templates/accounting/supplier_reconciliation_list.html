@@ -8,7 +8,7 @@
       <th>ID</th>
       <th>Supplier</th>
       <th>Date</th>
-      <th class="text-end">Amount</th>
+
       <th>Status</th>
       <th>Reference</th>
     </tr>
@@ -20,11 +20,12 @@
       <td>{{ rec.supplier.business_name }}</td>
       <td>{{ rec.recon_date }}</td>
       <td class="text-end">{{ '%.2f'|format(rec.amount) }}</td>
+
       <td>{{ rec.status }}</td>
       <td>{{ rec.reference or '' }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="6" class="text-center">No reconciliations found.</td></tr>
+
     {% endfor %}
   </tbody>
 </table>
