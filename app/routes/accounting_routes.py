@@ -3339,7 +3339,10 @@ def supplier_reconcile():
     rec_id = request.form.get('rec_id', type=int) or request.args.get('rec_id', type=int)
     if request.method == 'POST':
         action = request.form.get('action', 'save')
-        supplier_id = int(request.form.get('supplier_id'))
+        supplier_id = request.form.get('supplier_id', type=int)
+        if not supplier_id:
+            flash('❌ Supplier is required.', 'danger')
+            return redirect(request.url)
         recon_date = datetime.strptime(request.form.get('recon_date'), '%Y-%m-%d').date()
         reference = request.form.get('reference') or None
         statement_amount = Decimal(request.form.get('statement_amount', '0'))
