@@ -1,8 +1,9 @@
 import logging
 from logging.config import fileConfig
+
+from flask import current_app
 from sqlalchemy import MetaData
 from app.models import Base
-from flask import current_app
 
 from alembic import context
 
@@ -47,6 +48,7 @@ target_db = current_app.extensions['migrate'].db
 
 
 def get_metadata():
+    """Merge Flask-SQLAlchemy and tenant metadata for autogenerate."""
     main_meta = target_db.metadata
     tenant_meta = Base.metadata
 

@@ -8,11 +8,6 @@
       <th>ID</th>
       <th>Supplier</th>
       <th>Date</th>
-      <th class="text-end">Total Cost</th>
-      <th class="text-end">Statement Amt</th>
-      <th>Status</th>
-      <th>Reference</th>
-      <th>Actions</th>
     </tr>
   </thead>
   <tbody>
@@ -22,21 +17,7 @@
       <td>{{ rec.supplier.business_name }}</td>
       <td>{{ rec.recon_date }}</td>
       <td class="text-end">{{ '%.2f'|format(rec.amount) }}</td>
-      <td class="text-end">{{ '%.2f'|format(rec.statement_amount) }}</td>
-      <td>{{ rec.status }}</td>
-      <td>{{ rec.reference or '' }}</td>
-      <td>
-        {% if rec.status == 'Saved' %}
-        <a href="{{ url_for('accounting_routes.supplier_reconcile', rec_id=rec.id) }}" class="btn btn-sm btn-primary">Continue</a>
-        {% else %}
-        <form method="post" action="{{ url_for('accounting_routes.reverse_supplier_reconciliation', rec_id=rec.id) }}" style="display:inline">
-          <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Reverse this reconciliation?');">Reverse</button>
-        </form>
-        {% endif %}
-      </td>
-    </tr>
-    {% else %}
-    <tr><td colspan="7" class="text-center">No reconciliations found.</td></tr>
+
     {% endfor %}
   </tbody>
 </table>
