@@ -3336,6 +3336,7 @@ def supplier_reconcile():
     company_id = session['company_id']
     suppliers = tenant_session.query(Supplier).filter_by(is_active=True, is_reconcilable=True).all()
 
+    rec_id = request.form.get('rec_id', type=int) or request.args.get('rec_id', type=int)
     if request.method == 'POST':
         action = request.form.get('action', 'save')
         supplier_id = int(request.form.get('supplier_id'))
@@ -3360,10 +3361,11 @@ def supplier_reconcile():
         tenant_session.flush()
 
 
-        line.is_reconciled = True
+            line.is_reconciled = True
             tenant_session.add(SupplierReconciliationLine(
                 reconciliation_id=rec.id,
                 invoice_line_id=line.id,
+
             ))
 
         if action == 'reconcile':
@@ -3381,42 +3383,6 @@ def supplier_reconcile():
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
 
-    query = tenant_session.query(InvoiceLine).join(Invoice).filter(
-        Invoice.company_id == company_id
-    )
-    if supplier_id:
-        query = query.filter(InvoiceLine.supplier_id == supplier_id)
-    if start_date_str:
-        try:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            query = query.filter(InvoiceLine.service_date >= start_date)
-        except ValueError:
-            start_date = None
-    else:
-        start_date = None
-    if end_date_str:
-        try:
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-            query = query.filter(InvoiceLine.service_date <= end_date)
-        except ValueError:
-            end_date = None
-    else:
-        end_date = None
-
-    lines = query.options(joinedload(InvoiceLine.invoice), joinedload(InvoiceLine.pax)).filter(InvoiceLine.is_reconciled == False).all()
-
-
-    return render_template(
-        'accounting/supplier_reconcile.html',
-        suppliers=suppliers,
-        lines=lines,
-        selected_supplier_id=supplier_id or '',
-
-        start_date=start_date_str or '',
-        end_date=end_date_str or '',
-        current_date=date.today()
-    )
-
 
 @accounting_routes.route('/suppliers/reconciliations')
 def supplier_reconciliation_list():
@@ -3431,6 +3397,7 @@ def supplier_reconciliation_list():
         .all()
     )
     return render_template('accounting/supplier_reconciliation_list.html', recs=recs)
+
 
 
 @accounting_routes.route('/expenses/post', methods=['GET', 'POST'])

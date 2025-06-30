@@ -22,9 +22,6 @@
     <label>End Date</label>
     <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
   </div>
-  <div class="col-md-2 d-flex align-items-end">
-    <button type="submit" class="btn btn-primary">🔍 Filter</button>
-  </div>
 </form>
 
 
@@ -37,6 +34,55 @@
     </div>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function calc() {
+  let totalCost = 0;
+  let totalSupplier = 0;
+  document.querySelectorAll('.line-check').forEach(cb => {
+    const id = cb.value;
+    const costEl = document.querySelector('.total-cost[data-line="' + id + '"]');
+    const supEl = document.querySelector('.supplier-amount[data-line="' + id + '"]');
+    const discEl = document.querySelector('.discrepancy[data-line="' + id + '"]');
+    const cost = parseFloat(costEl.textContent) || 0;
+    const supplierAmt = parseFloat(supEl.value) || 0;
+    if (cb.checked) {
+      totalCost += cost;
+      totalSupplier += supplierAmt;
+    }
+    const diff = (cost - supplierAmt).toFixed(2);
+    discEl.textContent = diff;
+    discEl.classList.remove('text-success','text-danger');
+    if (diff > 0) discEl.classList.add('text-success');
+    else if (diff < 0) discEl.classList.add('text-danger');
+  });
+  const discTotal = (totalCost - totalSupplier).toFixed(2);
+  document.getElementById('totalCost').textContent = totalCost.toFixed(2);
+  document.getElementById('totalSupplier').textContent = totalSupplier.toFixed(2);
+  const discEl = document.getElementById('totalDisc');
+  discEl.textContent = discTotal;
+  discEl.classList.remove('text-success','text-danger');
+  if (discTotal > 0) discEl.classList.add('text-success');
+  else if (discTotal < 0) discEl.classList.add('text-danger');
+}
+
+document.querySelectorAll('.supplier-amount, .line-check').forEach(el => {
+  el.addEventListener('input', calc);
+});
+window.addEventListener('load', calc);
+
+document.getElementById('reconForm').addEventListener('submit', function(e) {
+  if (e.submitter && e.submitter.value === 'reconcile') {
+    calc();
+    if (parseFloat(document.getElementById('totalDisc').textContent) !== 0) {
+      e.preventDefault();
+      alert('Discrepancies must be zero to reconcile');
+    }
+  }
+});
+</script>
 {% endblock %}
 
 {% block scripts %}
