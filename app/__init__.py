@@ -24,9 +24,10 @@ def create_app(db_uri_override=None):
 
     # Main database config
     # Default to the central database stored under ``instance/app.db`` unless
-    # a different URI is provided at creation time. Construct an absolute
-    # path so the application can be executed from any directory.
+    # a different URI is provided at creation time.
     default_db_path = os.path.join(INSTANCE_DIR, 'app.db')
+    default_db = f"sqlite:///{default_db_path}"
+
     default_db = f"sqlite:///{default_db_path}"
     app.config['SQLALCHEMY_DATABASE_URI'] = db_uri_override or default_db
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False

@@ -3346,27 +3346,12 @@ def supplier_reconcile():
         line_ids = [int(i) for i in request.form.getlist('line_ids')]
 
         lines = tenant_session.query(InvoiceLine).filter(InvoiceLine.id.in_(line_ids)).all()
-        line_data = []
-        total_cost = Decimal('0')
-        total_supplier_amt = Decimal('0')
-        for line in lines:
-            line_total = (line.base_fare or 0) + (line.tax or 0)
-            supplier_amt = Decimal(request.form.get(f'supplier_amount_{line.id}', '0'))
-            line_data.append((line, supplier_amt, line_total))
-            total_cost += Decimal(str(line_total))
-            total_supplier_amt += supplier_amt
 
-        total_discrepancy = total_cost - total_supplier_amt
-
-        if action == 'reconcile' and total_discrepancy != Decimal('0'):
-            flash('❌ Discrepancies must be zero to reconcile.', 'danger')
-            return redirect(request.url)
 
         rec = SupplierReconciliation(
             supplier_id=supplier_id,
             recon_date=recon_date,
-            amount=total_cost,
-            statement_amount=statement_amount,
+
             reference=reference,
             notes=notes,
             status='Reconciled' if action == 'reconcile' else 'Saved'
@@ -3374,19 +3359,19 @@ def supplier_reconcile():
         tenant_session.add(rec)
         tenant_session.flush()
 
-        for line, supplier_amt, _line_total in line_data:
+
             line.is_reconciled = True
             tenant_session.add(SupplierReconciliationLine(
                 reconciliation_id=rec.id,
                 invoice_line_id=line.id,
-                supplier_amount=supplier_amt
+
             ))
 
         if action == 'reconcile':
             tenant_session.add(SupplierPaymentDue(
                 reconciliation_id=rec.id,
                 reference=reference,
-                amount=statement_amount
+
             ))
 
         tenant_session.commit()
@@ -3420,16 +3405,14 @@ def supplier_reconcile():
         end_date = None
 
     lines = query.options(joinedload(InvoiceLine.invoice), joinedload(InvoiceLine.pax)).filter(InvoiceLine.is_reconciled == False).all()
-    selected_supplier = None
-    if supplier_id:
-        selected_supplier = tenant_session.query(Supplier).get(supplier_id)
+
 
     return render_template(
         'accounting/supplier_reconcile.html',
         suppliers=suppliers,
         lines=lines,
         selected_supplier_id=supplier_id or '',
-        selected_supplier=selected_supplier,
+
         start_date=start_date_str or '',
         end_date=end_date_str or '',
         current_date=date.today()

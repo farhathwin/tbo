@@ -2,9 +2,7 @@
 {% block title %}Supplier Reconciliation{% endblock %}
 {% block content %}
 <h3>Supplier Reconciliation</h3>
-{% if selected_supplier %}
-<div class="mb-2"><strong>Supplier:</strong> {{ selected_supplier.business_name }}</div>
-{% endif %}
+
 
 <form method="get" class="row g-3 mb-3">
   <div class="col-md-4">
@@ -29,65 +27,7 @@
   </div>
 </form>
 
-<form method="post" id="reconForm">
-  <input type="hidden" name="supplier_id" value="{{ selected_supplier_id }}">
-  <input type="hidden" name="recon_date" value="{{ current_date }}">
-  <div class="row g-3 mb-3">
-    <div class="col-md-3">
-      <label>Invoice/Statement No</label>
-      <input type="text" name="reference" class="form-control" required>
-    </div>
-    <div class="col-md-3">
-      <label>Statement Amount</label>
-      <input type="number" step="0.01" name="statement_amount" class="form-control" required>
-    </div>
-  </div>
-  <table class="table table-sm table-bordered">
-    <thead class="table-light">
-      <tr>
-        <th></th>
-        <th>Purchase #</th>
-        <th>Passenger</th>
-        <th>Invoice #</th>
-        <th>Ticket #</th>
-        <th>Service Date</th>
-        <th class="text-end">Base Fare</th>
-        <th class="text-end">Tax</th>
-        <th class="text-end">Total Cost</th>
-        <th class="text-end">Supplier Amount</th>
-        <th class="text-end">Discrepancy</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for line in lines %}
-      <tr>
-        <td><input type="checkbox" name="line_ids" value="{{ line.id }}" class="line-check"></td>
-        <td>{{ line.purchase_number }}</td>
-        <td>{{ line.pax.first_name }} {{ line.pax.last_name }}</td>
-        <td>{{ line.invoice.invoice_number }}</td>
-        <td>{{ line.ticket_no }}</td>
-        <td>{{ line.service_date }}</td>
-        <td class="text-end">{{ '%.2f'|format(line.base_fare or 0) }}</td>
-        <td class="text-end">{{ '%.2f'|format(line.tax or 0) }}</td>
-        <td class="text-end total-cost" data-line="{{ line.id }}">{{ '%.2f'|format((line.base_fare or 0)+(line.tax or 0)) }}</td>
-        <td><input type="number" step="0.01" class="form-control form-control-sm supplier-amount" name="supplier_amount_{{ line.id }}" data-line="{{ line.id }}"></td>
-        <td class="text-end discrepancy" data-line="{{ line.id }}">0.00</td>
-      </tr>
-      {% else %}
-      <tr><td colspan="11" class="text-center">No lines found.</td></tr>
-      {% endfor %}
-    </tbody>
-    <tfoot>
-      <tr class="table-light">
-        <th colspan="8" class="text-end">Totals:</th>
-        <th class="text-end" id="totalCost">0.00</th>
-        <th class="text-end" id="totalSupplier">0.00</th>
-        <th class="text-end" id="totalDisc">0.00</th>
-      </tr>
-    </tfoot>
-  </table>
 
-  <div class="row g-3">
     <div class="col-md-6">
       <textarea name="notes" class="form-control" placeholder="Notes"></textarea>
     </div>
