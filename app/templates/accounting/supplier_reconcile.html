@@ -32,14 +32,15 @@
 <form method="post" id="reconForm">
   <input type="hidden" name="supplier_id" value="{{ selected_supplier_id }}">
   <input type="hidden" name="recon_date" value="{{ current_date }}">
+  <input type="hidden" name="rec_id" value="{{ rec_id }}">
   <div class="row g-3 mb-3">
     <div class="col-md-3">
       <label>Invoice/Statement No</label>
-      <input type="text" name="reference" class="form-control" required>
+      <input type="text" name="reference" class="form-control" value="{{ reference }}" required>
     </div>
     <div class="col-md-3">
       <label>Statement Amount</label>
-      <input type="number" step="0.01" name="statement_amount" class="form-control" required>
+      <input type="number" step="0.01" name="statement_amount" class="form-control" value="{{ '%.2f'|format(statement_amount) }}" required>
     </div>
   </div>
   <table class="table table-sm table-bordered">
@@ -61,7 +62,7 @@
     <tbody>
       {% for line in lines %}
       <tr>
-        <td><input type="checkbox" name="line_ids" value="{{ line.id }}" class="line-check"></td>
+        <td><input type="checkbox" name="line_ids" value="{{ line.id }}" class="line-check" {% if line.id in supplier_amounts %}checked{% endif %}></td>
         <td>{{ line.purchase_number }}</td>
         <td>{{ line.pax.first_name }} {{ line.pax.last_name }}</td>
         <td>{{ line.invoice.invoice_number }}</td>
@@ -70,7 +71,7 @@
         <td class="text-end">{{ '%.2f'|format(line.base_fare or 0) }}</td>
         <td class="text-end">{{ '%.2f'|format(line.tax or 0) }}</td>
         <td class="text-end total-cost" data-line="{{ line.id }}">{{ '%.2f'|format((line.base_fare or 0)+(line.tax or 0)) }}</td>
-        <td><input type="number" step="0.01" class="form-control form-control-sm supplier-amount" name="supplier_amount_{{ line.id }}" data-line="{{ line.id }}"></td>
+        <td><input type="number" step="0.01" class="form-control form-control-sm supplier-amount" name="supplier_amount_{{ line.id }}" data-line="{{ line.id }}" value="{{ supplier_amounts.get(line.id, '') }}"></td>
         <td class="text-end discrepancy" data-line="{{ line.id }}">0.00</td>
       </tr>
       {% else %}
