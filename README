@@ -54,7 +54,8 @@ if __name__ == '__main__':
    ```
 
    The helper script automatically stamps a tenant DB to the base
-   revision (`df0745a851cf`) if it has never been migrated.
+   revision (`df0745a851cf`) if it has never been migrated. This
+   prevents "table already exists" errors during the first upgrade.
 
 3. If a tenant database does not yet exist, create it using
    `app.utils.database_utils.create_company_schema()` before running the
