@@ -2664,6 +2664,20 @@ def reverse_invoice(invoice_id):
         flash("⚠️ Only finalised invoices can be reversed.", "warning")
         return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
 
+    reconciled = (
+        tenant_session.query(SupplierReconciliationLine)
+        .join(SupplierReconciliation)
+        .join(InvoiceLine)
+        .filter(
+            InvoiceLine.invoice_id == invoice.id,
+            SupplierReconciliation.status == 'Reconciled'
+        )
+        .first()
+    )
+    if reconciled:
+        flash('❌ Cannot reverse invoice with reconciled lines.', 'danger')
+        return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice.id))
+
     # Find the original journal entry
     entry = tenant_session.query(JournalEntry).filter_by(company_id=company_id, reference=invoice.invoice_number).first()
 

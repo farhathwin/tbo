@@ -17,7 +17,8 @@ db = SQLAlchemy()
 bcrypt = Bcrypt()
 mail = Mail()
 sess = Session()
-migrate = Migrate()
+migrations_dir = os.path.join(BASE_DIR, "migrations")
+migrate = Migrate(directory=migrations_dir)
 
 def create_app(db_uri_override=None):
     app = Flask(__name__)

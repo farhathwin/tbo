@@ -412,6 +412,13 @@ class SupplierReconciliation(Base):
     lines = relationship('SupplierReconciliationLine', back_populates='reconciliation', cascade='all, delete-orphan')
     payment_due = relationship('SupplierPaymentDue', uselist=False, back_populates='reconciliation')
 
+    @property
+    def rc_number(self) -> str:
+        """Return the reconciliation number like RC0001."""
+        if self.id is None:
+            return None
+        return f"RC{self.id:04d}"
+
 
 class SupplierReconciliationLine(Base):
     __tablename__ = 'supplier_reconciliation_lines'
