@@ -3334,7 +3334,11 @@ def supplier_reconcile():
 
     tenant_session = current_tenant_session()
     company_id = session['company_id']
-    suppliers = tenant_session.query(Supplier).filter_by(is_active=True, is_reconcilable=True).all()
+    suppliers = (
+        tenant_session.query(Supplier)
+        .filter_by(is_active=True, is_reconcilable=True)
+        .all()
+    )
 
     rec_id = request.form.get('rec_id', type=int) or request.args.get('rec_id', type=int)
     if request.method == 'POST':
@@ -3441,35 +3445,7 @@ def supplier_reconcile():
         reference = rec.reference or ''
         statement_amount = rec.statement_amount
     else:
-        query = tenant_session.query(InvoiceLine).join(Invoice).filter(
-            Invoice.company_id == company_id
-        )
-        if supplier_id:
-            query = query.filter(InvoiceLine.supplier_id == supplier_id)
-        if start_date_str:
-            try:
-                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-                query = query.filter(InvoiceLine.service_date >= start_date)
-            except ValueError:
-                start_date = None
-        else:
-            start_date = None
-        if end_date_str:
-            try:
-                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-                query = query.filter(InvoiceLine.service_date <= end_date)
-            except ValueError:
-                end_date = None
-        else:
-            end_date = None
 
-        lines = (
-            query.options(joinedload(InvoiceLine.invoice), joinedload(InvoiceLine.pax))
-            .filter(InvoiceLine.is_reconciled == False)
-            .all()
-        )
-        selected_supplier = None
-        if supplier_id:
             selected_supplier = tenant_session.query(Supplier).get(supplier_id)
 
     return render_template(

@@ -9,7 +9,7 @@
 <form method="get" class="row g-3 mb-3">
   <div class="col-md-4">
     <label>Supplier</label>
-    <select name="supplier_id" class="form-select">
+    <select name="supplier_id" class="form-select" required>
       <option value="">-- Select --</option>
       {% for sup in suppliers %}
       <option value="{{ sup.id }}" {% if sup.id == selected_supplier_id %}selected{% endif %}>{{ sup.business_name }}</option>
