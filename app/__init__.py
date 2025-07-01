@@ -39,8 +39,8 @@ def create_app(db_uri_override=None):
     app.config['MAIL_SERVER'] = 'mail.smtp2go.com'
     app.config['MAIL_PORT'] = 587
     app.config['MAIL_USE_TLS'] = True
-    app.config['MAIL_USERNAME'] = 'info@mleasd.com'
-    app.config['MAIL_PASSWORD'] = 'b4lCoLJnCyUJTL2Z988'
+    app.config['MAIL_USERNAME'] = 'otp@mleasd.com'
+    app.config['MAIL_PASSWORD'] = '17fp56bycMX0C3Yx'
     app.config['MAIL_DEFAULT_SENDER'] = app.config['MAIL_USERNAME']
 
     # Initialize extensions
