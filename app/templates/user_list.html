@@ -65,7 +65,9 @@
         <td>{{ invite.role }}</td>
         <td>—</td>
         <td><span class="badge bg-secondary">Pending Invite</span></td>
-        <td><small>Sent</small></td>
+        <td>
+          <a href="{{ url_for('register_routes.resend_invite', invite_id=invite.id) }}" class="btn btn-sm btn-secondary">Resend</a>
+        </td>
       </tr>
     {% endfor %}
   </tbody>

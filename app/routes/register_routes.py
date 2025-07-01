@@ -398,16 +398,21 @@ def user_list():
     if 'user_id' not in session or 'domain' not in session:
         return redirect(url_for('register_routes.login'))
 
+    # Only SuperXuser or Admin can view/manage users
+    role = session.get('role')
+    if role not in ['SuperXuser', 'Admin']:
+        abort(403)
+
     domain = session['domain']
     company_id = session['company_id']
     tenant_session = get_company_db_session(domain)
 
     if request.method == 'POST':
         email = request.form['email']
-        role = request.form['role']
+        role_form = request.form['role']
         token = secrets.token_hex(32)
 
-        invite = UserInvite(email=email, role=role, token=token, company_id=company_id)
+        invite = UserInvite(email=email, role=role_form, token=token, company_id=company_id)
         db.session.add(invite)
         db.session.commit()
 
@@ -428,6 +433,22 @@ def user_list():
 
     invites = UserInvite.query.filter_by(company_id=company_id).all()
     return render_template('user_list.html', users=user_list, invites=invites)
+
+
+@register_routes.route('/resend-invite/<int:invite_id>')
+def resend_invite(invite_id):
+    if 'user_id' not in session or 'domain' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    role = session.get('role')
+    if role not in ['SuperXuser', 'Admin']:
+        abort(403)
+
+    invite = UserInvite.query.filter_by(id=invite_id, is_used=False).first_or_404()
+    invite_link = url_for('register_routes.accept_invite', token=invite.token, _external=True)
+    send_otp_email(mail, invite.email, f"You've been invited! Set your password: {invite_link}")
+    flash("Invitation resent!", "info")
+    return redirect(url_for('register_routes.user_list'))
 
 
 
