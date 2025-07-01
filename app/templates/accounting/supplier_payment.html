@@ -23,6 +23,7 @@
         <option value="{{ sup.id }}" {% if selected_supplier and sup.id == selected_supplier.id %}selected{% endif %}>{{ sup.business_name }}</option>
         {% endfor %}
       </select>
+      <input type="hidden" id="prev_supplier_id" name="prev_supplier_id" value="{{ selected_supplier.id if selected_supplier else '' }}">
     </div>
     <input type="hidden" name="select_supplier" value="1">
   </div>
@@ -91,6 +92,7 @@ const accSelect = document.getElementById('payment_account_id');
 const supplierSelect = document.getElementById('supplier_id');
 const paymentMethod = document.getElementById('payment_method');
 const chequeField = document.getElementById('chequeField');
+const prevSupplierInput = document.getElementById('prev_supplier_id');
 
 function filterSuppliers() {
   const selected = cashInfo.find(a => a.id == accSelect.value);
@@ -102,9 +104,11 @@ function filterSuppliers() {
     }
   });
   if(selected && selected.type === 'Wallet') {
+    if(!prevSupplierInput.value) {
+      prevSupplierInput.value = supplierSelect.value;
+    }
     supplierSelect.value = selected.supplier_id;
   } else {
-    supplierSelect.value = '';
   }
 }
 function updateChequeOption(){
@@ -132,7 +136,20 @@ function onAccountChange(){
   document.getElementById('supplierForm').submit();
 }
 
-window.addEventListener('load', () => { filterSuppliers(); updateChequeOption(); });
+supplierSelect.addEventListener('change', () => {
+  const selected = cashInfo.find(a => a.id == accSelect.value);
+  if(!selected || selected.type !== 'Wallet') {
+    prevSupplierInput.value = supplierSelect.value;
+  }
+});
+
+window.addEventListener('load', () => {
+  if(!prevSupplierInput.value){
+    prevSupplierInput.value = supplierSelect.value;
+  }
+  filterSuppliers();
+  updateChequeOption();
+});
 
 document.getElementById('total_paid')?.addEventListener('input', function(){
   let remaining = parseFloat(this.value) || 0;
