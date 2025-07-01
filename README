@@ -63,6 +63,19 @@ if __name__ == '__main__':
 4. Once migrations complete you can start the application normally with
    `python main.py`.
 
+## Switching to MySQL in production
+
+Set the ``SQLALCHEMY_DATABASE_URI`` environment variable before starting the
+app to override the default SQLite database. For example:
+
+```bash
+export SQLALCHEMY_DATABASE_URI=mysql+pymysql://mleasd:@T@_$Ciy2kTSg_t@mleasd.mysql.pythonanywhere-services.com/mleasd$accounts
+python main.py
+```
+
+When this variable is unset the application falls back to the local
+``instance/app.db`` SQLite file for development.
+
 ## Purchase numbers for invoice lines
 
 Invoice line items automatically receive a unique purchase number once
