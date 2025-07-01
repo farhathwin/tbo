@@ -73,15 +73,6 @@ export SQLALCHEMY_DATABASE_URI=mysql+pymysql://mleasd:@T@_$Ciy2kTSg_t@mleasd.mys
 python main.py
 ```
 
-Before running the application on MySQL for the first time, initialise the
-schema with Alembic:
-
-```bash
-FLASK_APP=main.py flask db upgrade
-```
-
-This creates the ``master_company`` and other core tables in the new
-database.
 
 When this variable is unset the application falls back to the local
 ``instance/app.db`` SQLite file for development.

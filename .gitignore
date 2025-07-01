@@ -1,2 +1,9 @@
 __pycache__/
 venv/
+# Ignore all SQLite database files
+*.db
+
+# Optional: specifically ignore tenant and instance DBs
+instance/*.db
+tenant_dbs/*.db
+
