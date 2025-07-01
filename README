@@ -69,8 +69,8 @@ Set the ``SQLALCHEMY_DATABASE_URI`` environment variable before starting the
 app to override the default SQLite database. For example:
 
 ```bash
-export SQLALCHEMY_DATABASE_URI=mysql+pymysql://mleasd:@T@_$Ciy2kTSg_t@mleasd.mysql.pythonanywhere-services.com/mleasd$accounts
-python main.py
+export SQLALCHEMY_DATABASE_URI='mysql+pymysql://mleasd:%40T%40_%24Ciy2kTSg_t@mleasd.mysql.pythonanywhere-services.com/mleasd$accounts'
+
 ```
 
 When this variable is unset the application falls back to the local
