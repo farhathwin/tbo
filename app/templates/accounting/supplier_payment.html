@@ -112,10 +112,10 @@ function filterSuppliers() {
     if(prevSupplierInput.value) {
       supplierSelect.value = prevSupplierInput.value;
     }
-    supplierSelect.value = '';
   }
 }
 function updateChequeOption(){
+  if(!paymentMethod) return;
   const selected = cashInfo.find(a => a.id == accSelect.value);
   const chequeOpt = paymentMethod.querySelector('option[value="Cheque"]');
   if(selected && selected.type === 'Bank'){
@@ -123,20 +123,21 @@ function updateChequeOption(){
   } else {
     if(paymentMethod.value === 'Cheque'){
       paymentMethod.value = '';
-      chequeField.style.display = 'none';
+      if(chequeField) chequeField.style.display = 'none';
     }
     chequeOpt.style.display = 'none';
   }
 }
 
 function toggleChequeField(){
+  if(!paymentMethod || !chequeField) return;
   const selected = cashInfo.find(a => a.id == accSelect.value);
   chequeField.style.display = (paymentMethod.value === 'Cheque' && selected && selected.type === 'Bank') ? 'block' : 'none';
 }
 
 function onAccountChange(){
   filterSuppliers();
-  updateChequeOption();
+  if(paymentMethod) updateChequeOption();
   document.getElementById('supplierForm').submit();
 }
 
@@ -152,7 +153,6 @@ window.addEventListener('load', () => {
     prevSupplierInput.value = supplierSelect.value;
   }
   filterSuppliers();
-  updateChequeOption();
 });
 
 document.getElementById('total_paid')?.addEventListener('input', function(){
