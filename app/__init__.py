@@ -29,8 +29,8 @@ def create_app(db_uri_override=None):
     default_db_path = os.path.join(INSTANCE_DIR, 'app.db')
     default_db = f"sqlite:///{default_db_path}"
 
-    env_db = os.getenv('SQLALCHEMY_DATABASE_URI')
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri_override or env_db or default_db
+    default_db = f"sqlite:///{default_db_path}"
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri_override or default_db
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = 'your_secret_key_here'
     app.config['SESSION_TYPE'] = 'filesystem'
@@ -39,8 +39,8 @@ def create_app(db_uri_override=None):
     app.config['MAIL_SERVER'] = 'mail.smtp2go.com'
     app.config['MAIL_PORT'] = 587
     app.config['MAIL_USE_TLS'] = True
-    app.config['MAIL_USERNAME'] = 'otp@mleasd.com'
-    app.config['MAIL_PASSWORD'] = '17fp56bycMX0C3Yx'
+    app.config['MAIL_USERNAME'] = 'buvindu@pepmytrip.com'
+    app.config['MAIL_PASSWORD'] = 'viX5o9qBXFAWYXtu'
     app.config['MAIL_DEFAULT_SENDER'] = app.config['MAIL_USERNAME']
 
     # Initialize extensions
