@@ -573,7 +573,8 @@ def unsuspend_user(user_id):
 def edit_user(user_id):
     domain = session.get('domain')
     tenant_session = get_company_db_session(domain)
-    user = tenant_session.get(User, user_id)
+    # Fetch the tenant user using the TenantUser model instead of the core User model
+    user = tenant_session.get(TenantUser, user_id)
     if not user:
         abort(404)
     if request.method == 'POST':
