@@ -73,6 +73,7 @@ export SQLALCHEMY_DATABASE_URI='mysql+pymysql://mleasd:%40T%40_%24Ciy2kTSg_t@mle
 
 ```
 
+
 When this variable is unset the application falls back to the local
 ``instance/app.db`` SQLite file for development.
 
