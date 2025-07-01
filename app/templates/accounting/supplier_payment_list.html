@@ -9,6 +9,7 @@
       <th>Date</th>
       <th>Supplier</th>
       <th class="text-end">Amount</th>
+      <th>Status</th>
       <th>Action</th>
     </tr>
   </thead>
@@ -20,11 +21,27 @@
       <td>{{ p.supplier.business_name }}</td>
       <td class="text-end">{{ '%.2f'|format(p.total_amount) }}</td>
       <td>
-        <a href="{{ url_for('accounting_routes.view_supplier_payment', payment_id=p.id) }}" class="btn btn-primary btn-sm">View</a>
+        {% if p.journal_entry.reversed_by %}
+          <span class="badge bg-secondary">Reversed</span>
+        {% else %}
+          <span class="badge bg-success">Active</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if not p.journal_entry.reversed_by %}
+        <div class="d-flex gap-1">
+          <a href="{{ url_for('accounting_routes.view_supplier_payment', payment_id=p.id) }}" class="btn btn-primary btn-sm">View</a>
+          <form method="POST" action="{{ url_for('accounting_routes.reverse_supplier_payment', payment_id=p.id) }}">
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure to delete this payment?');">Delete</button>
+          </form>
+        </div>
+        {% else %}
+        <button class="btn btn-secondary btn-sm" disabled>Reversed</button>
+        {% endif %}
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="5" class="text-center text-muted">No payments found.</td></tr>
+    <tr><td colspan="6" class="text-center text-muted">No payments found.</td></tr>
     {% endfor %}
   </tbody>
 </table>

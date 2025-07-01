@@ -103,6 +103,8 @@ function filterSuppliers() {
   });
   if(selected && selected.type === 'Wallet') {
     supplierSelect.value = selected.supplier_id;
+  } else {
+    supplierSelect.value = '';
   }
 }
 function updateChequeOption(){
