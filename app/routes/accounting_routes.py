@@ -3833,6 +3833,11 @@ def supplier_payment_list():
     payments = (
         tenant_session.query(SupplierPayment)
         .join(Supplier, SupplierPayment.supplier_id == Supplier.id)
+        .join(JournalEntry, SupplierPayment.journal_entry_id == JournalEntry.id)
+        .options(
+            joinedload(SupplierPayment.supplier),
+            joinedload(SupplierPayment.journal_entry),
+        )
         .filter(Supplier.company_id == company_id)
         .order_by(SupplierPayment.id.desc())
         .all()
@@ -3912,3 +3917,66 @@ def supplier_payment_pdf(payment_id):
         f'attachment; filename=payment_{payment.reference}.pdf'
     )
     return response
+
+
+@accounting_routes.route('/suppliers/payment/delete/<int:payment_id>', methods=['POST'])
+def reverse_supplier_payment(payment_id):
+    """Reverse a supplier payment by creating a reversing journal entry."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session.get('user_id')
+
+    payment = (
+        tenant_session.query(SupplierPayment)
+        .join(Supplier, SupplierPayment.supplier_id == Supplier.id)
+        .join(JournalEntry, SupplierPayment.journal_entry_id == JournalEntry.id)
+        .filter(SupplierPayment.id == payment_id, Supplier.company_id == company_id)
+        .first()
+    )
+
+    if not payment:
+        flash('❌ Payment not found.', 'danger')
+        return redirect(url_for('accounting_routes.supplier_payment_list'))
+
+    entry = payment.journal_entry
+
+    if entry.reversal_of or entry.reversed_by:
+        flash('⚠️ This payment has already been reversed.', 'warning')
+        return redirect(url_for('accounting_routes.supplier_payment_list'))
+
+    fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=True).first()
+    if not fiscal_year:
+        flash('⚠️ Active fiscal year not found.', 'danger')
+        return redirect(url_for('accounting_routes.supplier_payment_list'))
+
+    reverse_entry = JournalEntry(
+        company_id=company_id,
+        date=datetime.today().date(),
+        reference=f"REV-{entry.reference}",
+        narration=f"Reversal of Supplier Payment {entry.reference}",
+        created_by=user_id,
+        fiscal_year_id=fiscal_year.id if fiscal_year else None,
+    )
+    tenant_session.add(reverse_entry)
+    tenant_session.flush()
+
+    entry.reversed_entry_id = reverse_entry.id
+
+    for line in entry.lines:
+        tenant_session.add(
+            JournalLine(
+                entry_id=reverse_entry.id,
+                account_id=line.account_id,
+                debit=line.credit,
+                credit=line.debit,
+                narration=f"Reversal: {line.narration}",
+                partner_id=line.partner_id,
+            )
+        )
+
+    tenant_session.commit()
+    flash('✅ Supplier payment reversed.', 'success')
+    return redirect(url_for('accounting_routes.supplier_payment_list'))
