@@ -109,6 +109,10 @@ function filterSuppliers() {
     }
     supplierSelect.value = selected.supplier_id;
   } else {
+    if(prevSupplierInput.value) {
+      supplierSelect.value = prevSupplierInput.value;
+    }
+    supplierSelect.value = '';
   }
 }
 function updateChequeOption(){
