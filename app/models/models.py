@@ -268,13 +268,13 @@ class Supplier(Base):
     __tablename__ = 'suppliers'
 
     id = Column(Integer, primary_key=True)
-    supplier_code = Column(String, unique=True, nullable=True)  # SUP0001, SUP0002 etc.
+    supplier_code = Column(String(20), unique=True, nullable=True)  # SUP0001, SUP0002 etc.
     company_id = Column(Integer, nullable=False)
     account_payable_id = Column(Integer, ForeignKey('accounts.id'), nullable=False)
-    supplier_type = Column(String, nullable=False)  # e.g., Expenses, BSP, Airlines...
-    business_name = Column(String, nullable=False)
-    phone_number = Column(String, nullable=False)
-    email = Column(String)
+    supplier_type = Column(String(20), nullable=False)  # e.g., Expenses, BSP, Airlines...
+    business_name = Column(String(255), nullable=False)
+    phone_number = Column(String(20), nullable=False)
+    email = Column(String(100))
     is_reconcilable = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_by = Column(Integer, nullable=False)
@@ -285,11 +285,11 @@ class CashBank(Base):
     __tablename__ = 'cash_bank'
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, nullable=False)
-    type = Column(String, nullable=False)  # Cash, Bank, Wallet
-    account_name = Column(String)  # For Cash & Bank
-    bank_name = Column(String)     # For Bank
-    account_number = Column(String)  # For Bank
-    wallet_name = Column(String)   # For Wallet
+    type = Column(String(20), nullable=False)  # Cash, Bank, Wallet
+    account_name = Column(String(100))  # For Cash & Bank
+    bank_name = Column(String(100))     # For Bank
+    account_number = Column(String(50))  # For Bank
+    wallet_name = Column(String(50))   # For Wallet
     supplier_id = Column(Integer, ForeignKey('suppliers.id'))  # Only for Wallet
     account_cashandbank_id = Column(Integer, ForeignKey('accounts.id'), nullable=False)  # ✅ FIXED HERE
     is_active = Column(Boolean, default=True)
@@ -303,14 +303,14 @@ class Invoice(Base):
     __tablename__ = 'invoices'
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, nullable=False)
-    invoice_number = Column(String, nullable=False, unique=True)
+    invoice_number = Column(String(50), nullable=False, unique=True)
     invoice_date = Column(Date, nullable=False)
     transaction_date = Column(Date, nullable=False, default=date.today)
     customer_id = Column(Integer, ForeignKey('customers.id'), nullable=False)
-    service_type = Column(String, nullable=False)
+    service_type = Column(String(50), nullable=False)
     total_amount = Column(Numeric(12, 2), nullable=False)
-    currency = Column(String, nullable=False, default='LKR')
-    status = Column(String, default='Draft')
+    currency = Column(String(10), nullable=False, default='LKR')
+    status = Column(String(20), default='Draft')
     destination = Column(String(10))
     due_term = Column(Integer, default=0)
     created_by_user = relationship(
@@ -385,8 +385,8 @@ class Receipt(Base):
     id = Column(Integer, primary_key=True)
     customer_id = Column(Integer, ForeignKey("customers.id"))
     receipt_date = Column(Date)
-    payment_method = Column(String)
-    reference = Column(String)
+    payment_method = Column(String(50))
+    reference = Column(String(100))
     notes = Column(Text)
     total_amount = Column(Numeric(12, 2))
     account_id = Column(Integer, ForeignKey("accounts.id"))  # deposit to
@@ -404,9 +404,9 @@ class SupplierReconciliation(Base):
     recon_date = Column(Date, nullable=False)
     amount = Column(Numeric(12, 2), nullable=False)  # total cost of selected lines
     statement_amount = Column(Numeric(12, 2), nullable=False)
-    reference = Column(String)  # invoice/statement number
+    reference = Column(String(100))  # invoice/statement number
     notes = Column(Text)
-    status = Column(String, default='Saved')
+    status = Column(String(20), default='Saved')
 
     supplier = relationship('Supplier')
     lines = relationship('SupplierReconciliationLine', back_populates='reconciliation', cascade='all, delete-orphan')
@@ -437,7 +437,7 @@ class SupplierPaymentDue(Base):
 
     id = Column(Integer, primary_key=True)
     reconciliation_id = Column(Integer, ForeignKey('supplier_reconciliations.id'), nullable=False)
-    reference = Column(String)
+    reference = Column(String(100))
     amount = Column(Numeric(12, 2), nullable=False)
 
     reconciliation = relationship('SupplierReconciliation', back_populates='payment_due')
@@ -450,7 +450,7 @@ class Expense(Base):
     supplier_id = Column(Integer, ForeignKey('suppliers.id'), nullable=False)
     company_id = Column(Integer, nullable=False)
     expense_date = Column(Date, nullable=False)
-    description = Column(String)
+    description = Column(String(255))
     amount = Column(Numeric(12, 2), nullable=False)
     account_id = Column(Integer, ForeignKey('accounts.id'))
     journal_entry_id = Column(Integer, ForeignKey('journal_entries.id'))
@@ -467,8 +467,8 @@ class SupplierPayment(Base):
     supplier_id = Column(Integer, ForeignKey('suppliers.id'), nullable=False)
     company_id = Column(Integer, nullable=False)
     payment_date = Column(Date, nullable=False)
-    payment_method = Column(String)
-    reference = Column(String)
+    payment_method = Column(String(50))
+    reference = Column(String(100))
     notes = Column(Text)
     total_amount = Column(Numeric(12, 2))
     account_id = Column(Integer, ForeignKey('accounts.id'))  # paid from
