@@ -134,7 +134,7 @@ def create_tenant_domain():
     data = request.get_json()
     domain = data.get('domain')
     email = session.get('email')
-
+    
     if not email:
         return jsonify({'success': False, 'message': 'Not authenticated'}), 401
 
@@ -165,7 +165,7 @@ def create_tenant_domain():
         tenant_session.add(tenant_user)
         tenant_session.commit()
         tenant_session.close()
-
+        
         return jsonify({'success': True, 'message': f'Company {domain} created successfully!'})
 
     except Exception as e:

@@ -58,7 +58,9 @@ def create_company_schema(domain):
     if _use_mysql():
         base_url = _get_admin_base_url()
         db_name = domain.replace(".", "_")
-
+        # Debug: print the admin URI being used
+        print(f"[DEBUG] ADMIN URI: {base_url}")
+        print(f"[DEBUG] Creating DB: {db_name}")
         # Ensure the database exists before creating tables
         admin_engine = create_engine(str(base_url))
         with admin_engine.connect() as conn:
