@@ -33,15 +33,12 @@ def _get_admin_base_url() -> URL:
     uri = admin_uri or os.environ.get("SQLALCHEMY_DATABASE_URI")
     return make_url(uri).set(database=None)
 
-
-
-
 def get_tenant_db_uri(domain: str) -> str:
     """Return the full SQLAlchemy URI for a tenant database."""
     if _use_mysql():
         base_url = make_url(os.environ["SQLALCHEMY_DATABASE_URI"])
         db_name = domain.replace(".", "_")
-        return str(base_url.set(database=db_name))
+        return base_url.set(database=db_name).render_as_string(hide_password=False)
     db_path = get_tenant_db_path(domain)
     return f"sqlite:///{db_path}"
 
@@ -60,11 +57,14 @@ def create_company_schema(domain):
         db_name = domain.replace(".", "_")
 
         # Ensure the database exists before creating tables
-        admin_engine = create_engine(str(base_url))
+        admin_engine = create_engine(base_url.render_as_string(hide_password=False))
         with admin_engine.connect() as conn:
             conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{db_name}`"))
 
-        engine = create_engine(str(base_url.set(database=db_name)), echo=True)
+        engine = create_engine(
+            base_url.set(database=db_name).render_as_string(hide_password=False),
+            echo=True,
+        )
     else:
         db_path = get_tenant_db_path(domain)
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -86,7 +86,9 @@ def get_db_for_domain(domain):
     if _use_mysql():
         base_url = make_url(os.environ["SQLALCHEMY_DATABASE_URI"])
         db_name = domain.replace(".", "_")
-        engine = create_engine(str(base_url.set(database=db_name)))
+        engine = create_engine(
+            base_url.set(database=db_name).render_as_string(hide_password=False)
+        )
     else:
         db_path = get_tenant_db_path(domain)
         if not os.path.exists(db_path):
