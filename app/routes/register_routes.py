@@ -52,22 +52,6 @@ def register_company():
 
         code = ''.join(filter(str.isalnum, domain.upper()))[:6] + ''.join(random.choices(string.ascii_uppercase + string.digits, k=2))
 
-        # Wrap the main registration logic in a single transaction so that the
-        # ``company`` row definitely exists before inserting OTP records.
-        tenant_session = None
-        try:
-            new_company = MasterCompany(domain=domain, name=domain.split('.')[0].capitalize(), code=code)
-            db.session.add(new_company)
-            db.session.flush()  # assign ``id`` without committing
-
-            core_company = Company(
-                id=new_company.id,
-                name=new_company.name,
-                code=new_company.code,
-                domain=new_company.domain,
-            )
-            db.session.add(core_company)
-
             hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
             otp_code = ''.join(random.choices(string.digits, k=6))
 
