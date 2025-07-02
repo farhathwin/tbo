@@ -198,13 +198,16 @@ def login():
                 continue
 
         if not matching_domains:
-            flash("No matching tenant found for this user", "danger")
-            return redirect(url_for('register_routes.login'))
+            session['email'] = email
+            session['user_id'] = user.id
+            session['available_domains'] = []
+            session['role'] = user.role
+            return render_template('select_domain.html', domains=[], no_domains=True)
 
         session['email'] = email
         session['user_id'] = user.id
         session['available_domains'] = matching_domains
-        session['role'] = tenant_user.role  
+        session['role'] = tenant_user.role
 
 
         if len(matching_domains) == 1:

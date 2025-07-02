@@ -4,10 +4,60 @@
 {% block content %}
   <div class="container mt-5">
     <h3>Select your company domain</h3>
-    <ul>
-      {% for d in domains %}
-        <li><a href="{{ url_for('register_routes.select_domain', domain=d) }}">{{ d }}</a></li>
-      {% endfor %}
-    </ul>
+    {% if domains %}
+      <ul>
+        {% for d in domains %}
+          <li><a href="{{ url_for('register_routes.select_domain', domain=d) }}">{{ d }}</a></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>No company domains found for this user.</p>
+      <div class="card mt-4">
+        <div class="card-header">Create New Company</div>
+        <div class="card-body">
+          <form id="addCompanyForm">
+            <div class="mb-3">
+              <label for="domain" class="form-label">New Subdomain</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="domain" name="domain" placeholder="e.g. xyz" required>
+                <span class="input-group-text">.pepmytrip.com</span>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Create</button>
+          </form>
+        </div>
+      </div>
+    {% endif %}
   </div>
+{% endblock %}
+
+{% block scripts %}
+{% if not domains %}
+<script>
+  document.getElementById("addCompanyForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    const subdomain = document.getElementById("domain").value.trim().toLowerCase();
+    if(!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(subdomain)){
+      alert("Invalid subdomain. Use only letters, numbers, or hyphens.");
+      return;
+    }
+    const domain = `${subdomain}.pepmytrip.com`;
+    fetch("/create-tenant-domain", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ domain }),
+    })
+    .then(res => res.json())
+    .then(data => {
+      alert(data.message);
+      if(data.success){
+        location.reload();
+      }
+    })
+    .catch(err => alert("Error: " + err.message));
+  });
+</script>
+{% endif %}
 {% endblock %}
