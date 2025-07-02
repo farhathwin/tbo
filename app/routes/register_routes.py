@@ -55,6 +55,18 @@ def register_company():
         db.session.add(new_company)
         db.session.commit()
 
+        # 🔑 Ensure a corresponding row exists in the ``company`` table used by
+        # foreign key constraints (e.g. ``OTP.company_id``). Without this the
+        # OTP insert will fail on MySQL.
+        core_company = Company(
+            id=new_company.id,
+            name=new_company.name,
+            code=new_company.code,
+            domain=new_company.domain,
+        )
+        db.session.add(core_company)
+        db.session.commit()
+
         hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
         otp_code = ''.join(random.choices(string.digits, k=6))
 
