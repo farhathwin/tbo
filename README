@@ -95,6 +95,12 @@ database.
 When this variable is unset the application falls back to the local
 ``instance/app.db`` SQLite file for development.
 
+When running on MySQL the helper that creates tenant databases looks for a
+``SQLALCHEMY_ADMIN_URI`` environment variable.  If set, this URI is used for
+admin operations such as ``CREATE DATABASE``.  It should reference a user with
+permissions to create new databases.  If unset, the main
+``SQLALCHEMY_DATABASE_URI`` value is used instead.
+
 ## Purchase numbers for invoice lines
 
 Invoice line items automatically receive a unique purchase number once
