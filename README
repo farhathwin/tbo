@@ -101,6 +101,25 @@ admin operations such as ``CREATE DATABASE``.  It should reference a user with
 permissions to create new databases.  If unset, the main
 ``SQLALCHEMY_DATABASE_URI`` value is used instead.
 
+## Configuring the PythonAnywhere WSGI file
+
+Add the database URIs inside your PythonAnywhere WSGI script so the app
+uses MySQL in production:
+
+```python
+import os
+os.environ["SQLALCHEMY_DATABASE_URI"] = "mysql+pymysql://<user>:<password>@<host>/<db>"
+# Optional: separate admin account used when creating databases
+os.environ["SQLALCHEMY_ADMIN_URI"] = "mysql+pymysql://<admin>:<password>@<host>/<db>"
+```
+
+After updating the WSGI file, run the following command once to create
+the core tables:
+
+```bash
+FLASK_APP=main.py flask db upgrade
+```
+
 ## Purchase numbers for invoice lines
 
 Invoice line items automatically receive a unique purchase number once
