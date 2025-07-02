@@ -51,37 +51,50 @@ def register_company():
             )
 
         code = ''.join(filter(str.isalnum, domain.upper()))[:6] + ''.join(random.choices(string.ascii_uppercase + string.digits, k=2))
-        new_company = MasterCompany(domain=domain, name=domain.split('.')[0].capitalize(), code=code)
-        db.session.add(new_company)
-        db.session.commit()
 
-        hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
-        otp_code = ''.join(random.choices(string.digits, k=6))
-
-        tenant_db = create_company_schema(domain)
-        tenant_session = tenant_db()
-
+        # Wrap the main registration logic in a single transaction so that the
+        # ``company`` row definitely exists before inserting OTP records.
+        tenant_session = None
         try:
+            new_company = MasterCompany(domain=domain, name=domain.split('.')[0].capitalize(), code=code)
+            db.session.add(new_company)
+            db.session.flush()  # assign ``id`` without committing
+
+            core_company = Company(
+                id=new_company.id,
+                name=new_company.name,
+                code=new_company.code,
+                domain=new_company.domain,
+            )
+            db.session.add(core_company)
+
+            hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
+            otp_code = ''.join(random.choices(string.digits, k=6))
+
+            tenant_db = create_company_schema(domain)
+            tenant_session = tenant_db()
+
             tenant_user = TenantUser(email=email, password=hashed_pw, role='SuperXuser', company_id=new_company.id)
             tenant_otp = TenantOTP(email=email, otp_code=otp_code, company_id=new_company.id)
-            tenant_session.add(tenant_user)
-            tenant_session.add(tenant_otp)
+            tenant_session.add_all([tenant_user, tenant_otp])
             tenant_session.commit()
 
             core_user = User(email=email, password=hashed_pw, role='SuperXuser', company_id=new_company.id)
             core_otp = OTP(email=email, otp_code=otp_code, company_id=new_company.id)
-            db.session.add(core_user)
-            db.session.add(core_otp)
+            db.session.add_all([core_user, core_otp])
+
             db.session.commit()
-        
+
         except Exception as e:
-            tenant_session.rollback()
+            if tenant_session is not None:
+                tenant_session.rollback()
             db.session.rollback()
             flash(f"Registration failed: {e}", "danger")
             return redirect(url_for('register_routes.register_company'))
 
         finally:
-            tenant_session.close()
+            if tenant_session is not None:
+                tenant_session.close()
 
         send_otp_email(mail, email, otp_code)
         session['pending_user_email'] = email
