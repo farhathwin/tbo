@@ -34,6 +34,8 @@ def _get_admin_base_url() -> URL:
     return make_url(uri).set(database=None)
 
 
+
+
 def get_tenant_db_uri(domain: str) -> str:
     """Return the full SQLAlchemy URI for a tenant database."""
     if _use_mysql():
