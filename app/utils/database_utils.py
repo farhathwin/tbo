@@ -17,13 +17,12 @@ COMPANY_DATABASES = {}  # domain => scoped_session instance
 
 
 def _use_mysql():
-    """Return ``True`` when the main database engine uses MySQL."""
+    """Return ``True`` when the application is configured for MySQL."""
     try:
         return db.engine.url.drivername.startswith("mysql")
     except Exception:
-        uri = os.environ.get("SQLALCHEMY_DATABASE_URI", "")
-        return uri.startswith("mysql")
-    """Return True if the main DB URI points to MySQL."""
+        pass
+
     uri = os.environ.get("SQLALCHEMY_DATABASE_URI", "")
     return uri.startswith("mysql")
 
@@ -32,7 +31,9 @@ def _get_admin_base_url() -> URL:
     """Return the SQLAlchemy URL used for admin-level operations."""
     admin_uri = os.environ.get("SQLALCHEMY_ADMIN_URI")
     uri = admin_uri or os.environ.get("SQLALCHEMY_DATABASE_URI")
-    return make_url(uri)
+    return make_url(uri).set(database=None)
+
+
 
 
 def get_tenant_db_uri(domain: str) -> str:
