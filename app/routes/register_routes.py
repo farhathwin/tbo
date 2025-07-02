@@ -32,9 +32,9 @@ def register_company():
         email = request.form['email']
         password = request.form['password']
         subdomain = request.form['domain'].strip().lower()
-
         domain = f"{subdomain}.pepmytrip.com"
 
+        # Check if domain or email already exist
         if MasterCompany.query.filter_by(domain=domain).first():
             domain_error = "This subdomain is already taken. Please choose another."
 
@@ -45,28 +45,67 @@ def register_company():
             return render_template(
                 'register_company.html',
                 email=email,
-                domain=subdomain,  
+                domain=subdomain,
                 email_error=email_error,
                 domain_error=domain_error
             )
 
-        code = ''.join(filter(str.isalnum, domain.upper()))[:6] + ''.join(random.choices(string.ascii_uppercase + string.digits, k=2))
+        code = ''.join(filter(str.isalnum, domain.upper()))[:6] + \
+               ''.join(random.choices(string.ascii_uppercase + string.digits, k=2))
 
+        tenant_session = None
+
+        try:
+            # Create company in both tenant and core
+            new_company = MasterCompany(domain=domain, name=subdomain.capitalize(), code=code)
+            db.session.add(new_company)
+            db.session.flush()
+
+            core_company = Company(
+                id=new_company.id,
+                name=new_company.name,
+                code=new_company.code,
+                domain=new_company.domain,
+            )
+            db.session.add(core_company)
+            db.session.commit()
+
+            # Create hashed password and OTP
             hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
             otp_code = ''.join(random.choices(string.digits, k=6))
 
+            # Create tenant DB and register tenant user + OTP
             tenant_db = create_company_schema(domain)
             tenant_session = tenant_db()
 
-            tenant_user = TenantUser(email=email, password=hashed_pw, role='SuperXuser', company_id=new_company.id)
-            tenant_otp = TenantOTP(email=email, otp_code=otp_code, company_id=new_company.id)
+            tenant_user = TenantUser(
+                email=email,
+                password=hashed_pw,
+                role='SuperXuser',
+                company_id=new_company.id
+            )
+            tenant_otp = TenantOTP(
+                email=email,
+                otp_code=otp_code,
+                company_id=new_company.id
+            )
+
             tenant_session.add_all([tenant_user, tenant_otp])
             tenant_session.commit()
 
-            core_user = User(email=email, password=hashed_pw, role='SuperXuser', company_id=new_company.id)
-            core_otp = OTP(email=email, otp_code=otp_code, company_id=new_company.id)
+            # Add user + OTP to core
+            core_user = User(
+                email=email,
+                password=hashed_pw,
+                role='SuperXuser',
+                company_id=new_company.id
+            )
+            core_otp = OTP(
+                email=email,
+                otp_code=otp_code,
+                company_id=new_company.id
+            )
             db.session.add_all([core_user, core_otp])
-
             db.session.commit()
 
         except Exception as e:
@@ -87,6 +126,7 @@ def register_company():
         return redirect(url_for('register_routes.validate_otp'))
 
     return render_template('register_company.html')
+
 
 
 @register_routes.route('/create-tenant-domain', methods=['POST'])
