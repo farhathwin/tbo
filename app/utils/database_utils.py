@@ -1,6 +1,7 @@
 import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.engine.url import make_url
 from app import db
 from app.models import Base, TenantUser, TenantOTP, TenantUserInvite, Customer  # Ensure all models are imported!
 
@@ -16,18 +17,13 @@ COMPANY_DATABASES = {}  # domain => scoped_session instance
 
 
 def _use_mysql():
-    """Return ``True`` when the main database engine uses MySQL."""
-    try:
-        return db.engine.url.drivername.startswith("mysql")
-    except Exception:
-        uri = os.environ.get("SQLALCHEMY_DATABASE_URI", "")
-        return uri.startswith("mysql")
+
 
 
 def get_tenant_db_uri(domain: str) -> str:
     """Return the full SQLAlchemy URI for a tenant database."""
     if _use_mysql():
-        base_url = db.engine.url
+
         db_name = domain.replace(".", "_")
         return str(base_url.set(database=db_name))
     db_path = get_tenant_db_path(domain)
@@ -44,7 +40,7 @@ def get_tenant_db_path(domain):
 def create_company_schema(domain):
     """Create the tenant schema and return a scoped session factory."""
     if _use_mysql():
-        base_url = db.engine.url
+
         db_name = domain.replace(".", "_")
 
         # Ensure the database exists before creating tables
@@ -73,7 +69,7 @@ def get_db_for_domain(domain):
         return COMPANY_DATABASES[domain]
 
     if _use_mysql():
-        base_url = db.engine.url
+
         db_name = domain.replace(".", "_")
         engine = create_engine(str(base_url.set(database=db_name)))
     else:
