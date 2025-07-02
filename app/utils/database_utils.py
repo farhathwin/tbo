@@ -33,7 +33,6 @@ def _get_admin_base_url() -> URL:
     uri = admin_uri or os.environ.get("SQLALCHEMY_DATABASE_URI")
     return make_url(uri).set(database=None)
 
-
 def get_tenant_db_uri(domain: str) -> str:
     """Return the full SQLAlchemy URI for a tenant database."""
     if _use_mysql():
