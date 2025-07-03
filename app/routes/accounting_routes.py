@@ -20,6 +20,7 @@ from app.models.models import (
     SupplierPaymentDue,
     Expense,
     SupplierPayment,
+    BankTransfer,
 )
 from app.routes.register_routes import current_tenant_session
 from sqlalchemy import or_, and_, func
@@ -3699,7 +3700,6 @@ def supplier_payment():
     user_id = session.get('user_id')
     pay_option = request.form.get('pay_option', 'account') if request.method == 'POST' else 'account'
     cash_banks_query = tenant_session.query(CashBank).filter(
-    cash_banks = tenant_session.query(CashBank).filter(
         CashBank.company_id == company_id,
         CashBank.is_active == True,
     )
@@ -3708,8 +3708,6 @@ def supplier_payment():
     else:
         cash_banks_query = cash_banks_query.filter(CashBank.type.in_(['Cash', 'Bank']))
     cash_banks = cash_banks_query.all()
-    ).all()
-    pay_option = 'account'
     suppliers_query = tenant_session.query(Supplier).filter_by(is_active=True)
 
     selected_supplier = None
@@ -3994,3 +3992,107 @@ def reverse_supplier_payment(payment_id):
     tenant_session.commit()
     flash('✅ Supplier payment reversed.', 'success')
     return redirect(url_for('accounting_routes.supplier_payment_list'))
+
+@accounting_routes.route('/bank-transfer', methods=['GET', 'POST'])
+def bank_transfer():
+    """Record an internal transfer between cash/bank accounts."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    user_id = session.get('user_id')
+
+    cash_banks = tenant_session.query(CashBank).filter(
+        CashBank.company_id == company_id,
+        CashBank.is_active == True
+    ).order_by(CashBank.account_name).all()
+
+    if request.method == 'POST':
+        try:
+            from_cb_id = int(request.form.get('from_account'))
+            to_cb_id = int(request.form.get('to_account'))
+            amount = Decimal(request.form.get('amount') or '0')
+            transfer_date = datetime.strptime(request.form.get('transfer_date'), '%Y-%m-%d').date()
+            reference = request.form.get('reference') or None
+            narration = request.form.get('narration') or None
+        except Exception:
+            flash('❌ Invalid input.', 'danger')
+            return redirect(request.url)
+
+        if from_cb_id == to_cb_id:
+            flash('❌ From and To accounts must be different.', 'danger')
+            return redirect(request.url)
+        if amount <= 0:
+            flash('❌ Amount must be greater than zero.', 'danger')
+            return redirect(request.url)
+
+        from_cb = tenant_session.query(CashBank).filter_by(id=from_cb_id).first()
+        to_cb = tenant_session.query(CashBank).filter_by(id=to_cb_id).first()
+        if not from_cb or not to_cb:
+            flash('❌ Invalid account selection.', 'danger')
+            return redirect(request.url)
+
+        fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=True).first()
+        if not fiscal_year:
+            flash('⚠️ Active fiscal year not found.', 'danger')
+            return redirect(request.url)
+
+        journal = JournalEntry(
+            company_id=company_id,
+            date=transfer_date,
+            reference=reference or generate_journal_reference(tenant_session, company_id),
+            narration=narration or 'Bank Transfer',
+            created_by=user_id,
+            fiscal_year_id=fiscal_year.id if fiscal_year else None
+        )
+        tenant_session.add(journal)
+        tenant_session.flush()
+
+        tenant_session.add_all([
+            JournalLine(
+                entry_id=journal.id,
+                account_id=to_cb.account_cashandbank_id,
+                debit=float(amount),
+                narration='Bank Transfer In',
+                partner_id=to_cb.id
+            ),
+            JournalLine(
+                entry_id=journal.id,
+                account_id=from_cb.account_cashandbank_id,
+                credit=float(amount),
+                narration='Bank Transfer Out',
+                partner_id=from_cb.id
+            )
+        ])
+
+        transfer = BankTransfer(
+            company_id=company_id,
+            transfer_date=transfer_date,
+            from_cashbank_id=from_cb.id,
+            to_cashbank_id=to_cb.id,
+            amount=amount,
+            reference=journal.reference,
+            narration=narration,
+            journal_entry_id=journal.id
+        )
+        tenant_session.add(transfer)
+        tenant_session.commit()
+        flash('✅ Transfer recorded successfully.', 'success')
+        return redirect(url_for('accounting_routes.bank_transfer_list'))
+
+    return render_template('accounting/bank_transfer.html', cash_banks=cash_banks, current_date=date.today())
+
+
+@accounting_routes.route('/bank-transfers', methods=['GET'])
+def bank_transfer_list():
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+    default_currency = get_company_currency(tenant_session, company_id)
+
+    transfers = tenant_session.query(BankTransfer).filter_by(company_id=company_id).order_by(BankTransfer.id.desc()).all()
+
+    return render_template('accounting/bank_transfer_list.html', transfers=transfers, default_currency=default_currency)

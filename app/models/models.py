@@ -477,3 +477,21 @@ class SupplierPayment(Base):
     supplier = relationship('Supplier')
     journal_entry = relationship('JournalEntry')
 
+
+class BankTransfer(Base):
+    __tablename__ = 'bank_transfers'
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, nullable=False)
+    transfer_date = Column(Date, nullable=False)
+    from_cashbank_id = Column(Integer, ForeignKey('cash_bank.id'), nullable=False)
+    to_cashbank_id = Column(Integer, ForeignKey('cash_bank.id'), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+    reference = Column(String(100))
+    narration = Column(String(255))
+    journal_entry_id = Column(Integer, ForeignKey('journal_entries.id'))
+
+    from_cashbank = relationship('CashBank', foreign_keys=[from_cashbank_id])
+    to_cashbank = relationship('CashBank', foreign_keys=[to_cashbank_id])
+    journal_entry = relationship('JournalEntry')
+
