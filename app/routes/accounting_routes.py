@@ -3703,9 +3703,7 @@ def supplier_payment():
         CashBank.type.in_(['Cash', 'Bank', 'Wallet']),
         CashBank.is_active == True,
     ).all()
-
     pay_option = 'account'
-
     suppliers_query = tenant_session.query(Supplier).filter_by(is_active=True)
 
     selected_supplier = None
