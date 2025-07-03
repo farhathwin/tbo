@@ -3698,12 +3698,19 @@ def supplier_payment():
     company_id = session['company_id']
     user_id = session.get('user_id')
 
-    suppliers = tenant_session.query(Supplier).filter_by(is_active=True).all()
-    cash_banks = tenant_session.query(CashBank).filter(
+    pay_option = request.form.get('pay_option', 'account') if request.method == 'POST' else 'account'
+
+    cash_banks_query = tenant_session.query(CashBank).filter(
         CashBank.company_id == company_id,
-        CashBank.type.in_(['Cash', 'Bank', 'Wallet']),
         CashBank.is_active == True,
-    ).all()
+    )
+    if pay_option == 'wallet':
+        cash_banks_query = cash_banks_query.filter(CashBank.type == 'Wallet')
+    else:
+        cash_banks_query = cash_banks_query.filter(CashBank.type.in_(['Cash', 'Bank']))
+    cash_banks = cash_banks_query.all()
+
+    suppliers_query = tenant_session.query(Supplier).filter_by(is_active=True)
 
     selected_supplier = None
     selected_account = None
@@ -3806,6 +3813,11 @@ def supplier_payment():
             if account_id and account_id.isdigit():
                 selected_account = tenant_session.query(CashBank).filter_by(account_cashandbank_id=int(account_id), company_id=company_id).first()
 
+    if selected_account and selected_account.type == 'Wallet':
+        suppliers_query = suppliers_query.filter(Supplier.id == selected_account.supplier_id)
+
+    suppliers = suppliers_query.all()
+
     if selected_supplier:
         due_items = get_supplier_dues(tenant_session, company_id, selected_supplier)
 
@@ -3817,6 +3829,7 @@ def supplier_payment():
         selected_account=selected_account,
         due_items=due_items,
         cash_banks_info=[{'id': cb.account_cashandbank_id, 'type': cb.type, 'supplier_id': cb.supplier_id} for cb in cash_banks],
+        pay_option=pay_option,
         current_date=date.today(),
     )
 

@@ -5,6 +5,17 @@
 <form method="POST" id="supplierForm" class="mb-3">
   <div class="row g-3">
     <div class="col-md-4">
+      <label class="form-label d-block">Payment Type</label>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="pay_option" id="pay_option_account" value="account" {% if pay_option != 'wallet' %}checked{% endif %} onchange="onPayOptionChange();">
+        <label class="form-check-label" for="pay_option_account">Account Pay</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="pay_option" id="pay_option_wallet" value="wallet" {% if pay_option == 'wallet' %}checked{% endif %} onchange="onPayOptionChange();">
+        <label class="form-check-label" for="pay_option_wallet">Wallet Pay</label>
+      </div>
+    </div>
+    <div class="col-md-4">
       <label>Pay From</label>
       <select name="payment_account_id" id="payment_account_id" class="form-select" required onchange="onAccountChange();">
         <option value="">-- Select --</option>
@@ -34,6 +45,7 @@
   <input type="hidden" name="submit_payment" value="1">
   <input type="hidden" name="supplier_id" value="{{ selected_supplier.id }}">
   <input type="hidden" name="payment_account_id" value="{{ selected_account.account_cashandbank_id if selected_account else '' }}">
+  <input type="hidden" name="pay_option" value="{{ pay_option }}">
   <div class="row g-3 mb-3">
     <div class="col-md-3">
       <label>Date</label>
@@ -93,6 +105,31 @@ const supplierSelect = document.getElementById('supplier_id');
 const paymentMethod = document.getElementById('payment_method');
 const chequeField = document.getElementById('chequeField');
 const prevSupplierInput = document.getElementById('prev_supplier_id');
+const payOptionRadios = document.querySelectorAll('input[name="pay_option"]');
+
+function getPayOption(){
+  const opt = document.querySelector('input[name="pay_option"]:checked');
+  return opt ? opt.value : 'account';
+}
+
+function filterAccounts(){
+  const opt = getPayOption();
+  accSelect.querySelectorAll('option').forEach(optEl => {
+    if(!optEl.value) return;
+    const info = cashInfo.find(a => a.id == optEl.value);
+    optEl.style.display = '';
+    if(opt === 'wallet' && info && info.type !== 'Wallet') optEl.style.display = 'none';
+    if(opt !== 'wallet' && info && info.type === 'Wallet') optEl.style.display = 'none';
+  });
+  const current = cashInfo.find(a => a.id == accSelect.value);
+  if(opt === 'wallet' && (!current || current.type !== 'Wallet')){
+    const first = Array.from(accSelect.options).find(o => o.style.display !== 'none' && o.value);
+    accSelect.value = first ? first.value : '';
+  } else if(opt !== 'wallet' && current && current.type === 'Wallet'){
+    const first = Array.from(accSelect.options).find(o => o.style.display !== 'none' && o.value);
+    accSelect.value = first ? first.value : '';
+  }
+}
 
 function filterSuppliers() {
   const selected = cashInfo.find(a => a.id == accSelect.value);
@@ -135,6 +172,11 @@ function toggleChequeField(){
   chequeField.style.display = (paymentMethod.value === 'Cheque' && selected && selected.type === 'Bank') ? 'block' : 'none';
 }
 
+function onPayOptionChange(){
+  filterAccounts();
+  onAccountChange();
+}
+
 function onAccountChange(){
   filterSuppliers();
   if(paymentMethod) updateChequeOption();
@@ -152,6 +194,7 @@ window.addEventListener('load', () => {
   if(!prevSupplierInput.value){
     prevSupplierInput.value = supplierSelect.value;
   }
+  filterAccounts();
   filterSuppliers();
 });
 
