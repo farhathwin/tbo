@@ -3703,7 +3703,7 @@ def supplier_payment():
         CashBank.type.in_(['Cash', 'Bank', 'Wallet']),
         CashBank.is_active == True,
     ).all()
-
+    pay_option = 'account'
     suppliers_query = tenant_session.query(Supplier).filter_by(is_active=True)
 
     selected_supplier = None
@@ -3711,6 +3711,7 @@ def supplier_payment():
     due_items = []
 
     if request.method == 'POST':
+        pay_option = request.form.get('pay_option', 'account')
         if 'submit_payment' in request.form:
             supplier_id = int(request.form.get('supplier_id'))
             payment_account_id = int(request.form.get('payment_account_id'))
@@ -3823,6 +3824,7 @@ def supplier_payment():
         selected_account=selected_account,
         due_items=due_items,
         cash_banks_info=[{'id': cb.account_cashandbank_id, 'type': cb.type, 'supplier_id': cb.supplier_id} for cb in cash_banks],
+        pay_option=pay_option,
         current_date=date.today(),
     )
 
