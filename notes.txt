@@ -21,8 +21,7 @@ running the migration script:
 Set the ``SQLALCHEMY_DATABASE_URI`` environment variable on the server to use
 your MySQL instance. For the provided credentials the value would be::
 
-    mysql+pymysql://mleasd:@T@_$Ciy2kTSg_t@mleasd.mysql.pythonanywhere-services.com/mleasd$accounts
-
+    mysql+pymysql://<user>:<password>@<host>/<db>
 If this variable is not set the application falls back to the default SQLite
 database for local testing.  ``notes.txt`` is only for developer reference and
 does not need to be deployed to production.

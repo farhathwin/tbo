@@ -61,7 +61,17 @@ if __name__ == '__main__':
    `app.utils.database_utils.create_company_schema()` before running the
    migrations.
 4. Once migrations complete you can start the application normally with
+
    `python main.py`.
+## Environment variables
+Copy `env.example` to `.env` and set values for the following keys:
+- `SECRET_KEY`
+- `MAIL_USERNAME`
+- `MAIL_PASSWORD`
+- `SQLALCHEMY_DATABASE_URI`
+- `SQLALCHEMY_ADMIN_URI` (optional)
+- `DB_PASSWORD` (used by `mssqltest.py`)
+
 
 ## Switching to MySQL in production
 
@@ -69,7 +79,7 @@ Set the ``SQLALCHEMY_DATABASE_URI`` environment variable before starting the
 app to override the default SQLite database. For example:
 
 ```bash
-export SQLALCHEMY_DATABASE_URI='mysql+pymysql://mleasd:%40T%40_%24Ciy2kTSg_t@mleasd.mysql.pythonanywhere-services.com/mleasd$accounts'
+export SQLALCHEMY_DATABASE_URI='mysql+pymysql://<user>:<password>@<host>/<db>'
 
 ```
 
@@ -77,7 +87,7 @@ export SQLALCHEMY_DATABASE_URI='mysql+pymysql://mleasd:%40T%40_%24Ciy2kTSg_t@mle
 
 
 
-export SQLALCHEMY_DATABASE_URI='mysql+pymysql://mleasd:%40T%40_%24Ciy2kTSg_t@mleasd.mysql.pythonanywhere-services.com/mleasd$accounts'
+export SQLALCHEMY_DATABASE_URI='mysql+pymysql://<user>:<password>@<host>/<db>'
 
 
 Before running the application on MySQL for the first time, initialise the

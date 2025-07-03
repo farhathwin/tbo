@@ -5,6 +5,8 @@ from flask_mail import Mail
 from flask_session import Session
 from flask_migrate import Migrate
 import os
+from dotenv import load_dotenv
+
 
 # Absolute path to the repository root. This ensures that the default
 # SQLite database path is resolved correctly regardless of the current
@@ -12,6 +14,7 @@ import os
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
 os.makedirs(INSTANCE_DIR, exist_ok=True)
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 db = SQLAlchemy()
 bcrypt = Bcrypt()
@@ -33,15 +36,15 @@ def create_app(db_uri_override=None):
     env_db = os.environ.get("SQLALCHEMY_DATABASE_URI")
     app.config['SQLALCHEMY_DATABASE_URI'] = db_uri_override or env_db or default_db
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = 'your_secret_key_here'
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_secret_key_here')
     app.config['SESSION_TYPE'] = 'filesystem'
 
     # Mail config
     app.config['MAIL_SERVER'] = 'mail.smtp2go.com'
     app.config['MAIL_PORT'] = 587
     app.config['MAIL_USE_TLS'] = True
-    app.config['MAIL_USERNAME'] = 'buvindu@pepmytrip.com'
-    app.config['MAIL_PASSWORD'] = 'viX5o9qBXFAWYXtu'
+    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
     app.config['MAIL_DEFAULT_SENDER'] = app.config['MAIL_USERNAME']
 
     # Initialize extensions
