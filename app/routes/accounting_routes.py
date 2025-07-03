@@ -3698,12 +3698,13 @@ def supplier_payment():
     company_id = session['company_id']
     user_id = session.get('user_id')
 
-    suppliers = tenant_session.query(Supplier).filter_by(is_active=True).all()
     cash_banks = tenant_session.query(CashBank).filter(
         CashBank.company_id == company_id,
         CashBank.type.in_(['Cash', 'Bank', 'Wallet']),
         CashBank.is_active == True,
     ).all()
+
+    suppliers_query = tenant_session.query(Supplier).filter_by(is_active=True)
 
     selected_supplier = None
     selected_account = None
@@ -3805,6 +3806,11 @@ def supplier_payment():
                 selected_supplier = tenant_session.query(Supplier).filter_by(id=int(supplier_id)).first()
             if account_id and account_id.isdigit():
                 selected_account = tenant_session.query(CashBank).filter_by(account_cashandbank_id=int(account_id), company_id=company_id).first()
+
+    if selected_account and selected_account.type == 'Wallet':
+        suppliers_query = suppliers_query.filter(Supplier.id == selected_account.supplier_id)
+
+    suppliers = suppliers_query.all()
 
     if selected_supplier:
         due_items = get_supplier_dues(tenant_session, company_id, selected_supplier)
