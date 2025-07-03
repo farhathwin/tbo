@@ -14,7 +14,15 @@ from dotenv import load_dotenv
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
 os.makedirs(INSTANCE_DIR, exist_ok=True)
-load_dotenv(os.path.join(BASE_DIR, '.env'))
+
+# Load environment variables from ".env".  Some older setups used a file
+# named just "env" so fall back to that if the new file does not exist.
+dotenv_path = os.path.join(BASE_DIR, ".env")
+if not os.path.exists(dotenv_path):
+    legacy_env = os.path.join(BASE_DIR, "env")
+    if os.path.exists(legacy_env):
+        dotenv_path = legacy_env
+load_dotenv(dotenv_path)
 
 db = SQLAlchemy()
 bcrypt = Bcrypt()
