@@ -3697,11 +3697,17 @@ def supplier_payment():
     tenant_session = current_tenant_session()
     company_id = session['company_id']
     user_id = session.get('user_id')
-
+    pay_option = request.form.get('pay_option', 'account') if request.method == 'POST' else 'account'
+    cash_banks_query = tenant_session.query(CashBank).filter(
     cash_banks = tenant_session.query(CashBank).filter(
         CashBank.company_id == company_id,
-        CashBank.type.in_(['Cash', 'Bank', 'Wallet']),
         CashBank.is_active == True,
+    )
+    if pay_option == 'wallet':
+        cash_banks_query = cash_banks_query.filter(CashBank.type == 'Wallet')
+    else:
+        cash_banks_query = cash_banks_query.filter(CashBank.type.in_(['Cash', 'Bank']))
+    cash_banks = cash_banks_query.all()
     ).all()
     pay_option = 'account'
     suppliers_query = tenant_session.query(Supplier).filter_by(is_active=True)
