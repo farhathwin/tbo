@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Bank Transfers{% endblock %}
+{% block content %}
+<h3>Bank Transfers</h3>
+<a href="{{ url_for('accounting_routes.bank_transfer') }}" class="btn btn-success mb-3">+ New Transfer</a>
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Reference</th>
+      <th>From Account</th>
+      <th>To Account</th>
+      <th class="text-end">Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for t in transfers %}
+    <tr>
+      <td>{{ t.transfer_date }}</td>
+      <td>{{ t.reference }}</td>
+      <td>{{ t.from_cashbank.account_name or t.from_cashbank.bank_name or t.from_cashbank.wallet_name }}</td>
+      <td>{{ t.to_cashbank.account_name or t.to_cashbank.bank_name or t.to_cashbank.wallet_name }}</td>
+      <td class="text-end">{{ default_currency }} {{ '{:,.2f}'.format(t.amount) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="text-center text-muted">No transfers found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+
