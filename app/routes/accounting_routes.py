@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response, render_template_string, Response
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from app.models.models import (
     FiscalYear,
     Account,
@@ -3202,6 +3202,36 @@ def get_customer_deposit_balance(session, company_id, customer):
     return Decimal(str(credit_total)) - Decimal(str(debit_total))
 
 
+def get_invoice_outstanding(session, company_id, invoice):
+    """Return paid amount and outstanding balance for a single invoice."""
+    from decimal import Decimal
+    customer = session.query(Customer).filter_by(id=invoice.customer_id, company_id=company_id).first()
+    if not customer or not customer.account_receivable_id:
+        paid = Decimal('0')
+        return paid, Decimal(str(invoice.total_amount or 0))
+
+    payment_lines = (
+        session.query(JournalLine)
+        .join(JournalEntry)
+        .filter(
+            JournalEntry.company_id == company_id,
+            JournalLine.account_id == customer.account_receivable_id,
+            JournalLine.partner_id == customer.id,
+            or_(
+                JournalLine.narration.ilike(f"Payment for {invoice.invoice_number}%"),
+                JournalLine.narration.ilike(f"Deposit Allocation for {invoice.invoice_number}%"),
+                JournalLine.narration.ilike(f"Reverse payment for {invoice.invoice_number}%"),
+            ),
+        )
+        .filter(or_(JournalEntry.reversed_entry_id.is_(None), JournalEntry.reversed_entry_id == 0))
+        .all()
+    )
+
+    paid = sum(Decimal(str(line.credit or 0)) - Decimal(str(line.debit or 0)) for line in payment_lines)
+    outstanding = Decimal(str(invoice.total_amount or 0)) - paid
+    return paid, outstanding
+
+
 @accounting_routes.route('/receipts', methods=['GET'])
 def receipt_list():
     """List customer receipts with option to reverse."""
@@ -3402,6 +3432,86 @@ def receipt_pdf(receipt_id):
     response.headers['Content-Type'] = 'application/pdf'
     response.headers['Content-Disposition'] = (
         f'attachment; filename=receipt_{receipt.reference}.pdf'
+    )
+    return response
+
+
+@accounting_routes.route('/invoices/view/<int:invoice_id>')
+def view_invoice(invoice_id):
+    """Display invoice or proforma with print and PDF options."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    invoice = (
+        tenant_session.query(Invoice)
+        .options(
+            joinedload(Invoice.customer),
+            joinedload(Invoice.staff),
+            joinedload(Invoice.lines).joinedload(InvoiceLine.pax),
+        )
+        .filter(Invoice.id == invoice_id, Invoice.company_id == company_id)
+        .first()
+    )
+
+    if not invoice:
+        flash('❌ Invoice not found.', 'danger')
+        return redirect(url_for('accounting_routes.invoice_list'))
+
+    company = tenant_session.query(CompanyProfile).filter_by(company_id=company_id).first()
+    _, outstanding = get_invoice_outstanding(tenant_session, company_id, invoice)
+    due_date = invoice.invoice_date + timedelta(days=invoice.due_term or 0)
+
+    return render_template(
+        'accounting/invoice_detail.html',
+        invoice=invoice,
+        company=company,
+        due_date=due_date,
+        outstanding=outstanding,
+    )
+
+
+@accounting_routes.route('/invoices/pdf/<int:invoice_id>')
+def invoice_pdf(invoice_id):
+    """Generate a PDF for a single invoice."""
+    if 'domain' not in session or 'company_id' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    tenant_session = current_tenant_session()
+    company_id = session['company_id']
+
+    invoice = (
+        tenant_session.query(Invoice)
+        .options(
+            joinedload(Invoice.customer),
+            joinedload(Invoice.staff),
+            joinedload(Invoice.lines).joinedload(InvoiceLine.pax),
+        )
+        .filter(Invoice.id == invoice_id, Invoice.company_id == company_id)
+        .first()
+    )
+
+    if not invoice:
+        flash('❌ Invoice not found.', 'danger')
+        return redirect(url_for('accounting_routes.invoice_list'))
+
+    company = tenant_session.query(CompanyProfile).filter_by(company_id=company_id).first()
+    _, outstanding = get_invoice_outstanding(tenant_session, company_id, invoice)
+    due_date = invoice.invoice_date + timedelta(days=invoice.due_term or 0)
+    html = render_template('accounting/invoice_pdf.html', invoice=invoice, company=company, due_date=due_date, outstanding=outstanding)
+
+    pdf = BytesIO()
+    pisa_status = pisa.CreatePDF(html, dest=pdf)
+    if pisa_status.err:
+        return 'PDF generation error', 500
+
+    pdf.seek(0)
+    response = make_response(pdf.read())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = (
+        f'attachment; filename=invoice_{invoice.invoice_number}.pdf'
     )
     return response
 

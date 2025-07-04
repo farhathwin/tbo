@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Invoice {{ invoice.invoice_number }}{% endblock %}
+{% block content %}
+<div class="container my-4" id="invoice-area">
+  <div class="text-center">
+    <h4>{{ company.trading_name or company.company_name }}</h4>
+    <p class="mb-0">{{ company.address_line_1 }} {{ company.address_line_2 }} {{ company.city }}</p>
+    <p>☎ {{ company.phone }}</p>
+    <h5 class="mt-3">{{ 'Invoice' if invoice.status == 'Finalised' else 'Proforma Invoice' }}</h5>
+  </div>
+  <hr>
+  <div class="row mb-3">
+    <div class="col">
+      <p><strong>Invoice #:</strong> {{ invoice.invoice_number }}</p>
+      <p><strong>Invoice Date:</strong> {{ invoice.invoice_date }}</p>
+      <p><strong>Due Date:</strong> {{ due_date }}</p>
+      <p><strong>Sales Consultant:</strong> {{ invoice.staff.email if invoice.staff else '-' }}</p>
+      <p><strong>Service Type:</strong> {{ invoice.service_type }}</p>
+      <p><strong>Destination:</strong> {{ invoice.destination }}</p>
+    </div>
+    <div class="col">
+      <p><strong>Invoice To:</strong></p>
+      <p>{{ invoice.customer.full_name or invoice.customer.business_name }}</p>
+      <p>{{ invoice.customer.address_line_1 }} {{ invoice.customer.address_line_2 }} {{ invoice.customer.city }}</p>
+      <p>{{ invoice.customer.phone_number }}</p>
+    </div>
+  </div>
+  <table class="table table-bordered">
+    <thead>
+      <tr>
+        <th>Passenger</th>
+        <th>Ticket No</th>
+        <th>PNR/Ref</th>
+        <th class="text-end">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in invoice.lines %}
+      <tr>
+        <td>{{ (line.pax.first_name ~ ' ' ~ line.pax.last_name) if line.pax else '-' }}</td>
+        <td>{{ line.ticket_no }}</td>
+        <td>{{ line.pnr }}</td>
+        <td class="text-end">{{ "{:,.2f}".format(line.sell_price) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="text-end"><strong>Total:</strong> {{ company.currency_code }} {{ "{:,.2f}".format(invoice.total_amount) }}</p>
+  <p class="text-end"><strong>Outstanding:</strong> {{ company.currency_code }} {{ "{:,.2f}".format(outstanding) }}</p>
+  <div class="mt-4">
+    <a href="{{ url_for('accounting_routes.invoice_pdf', invoice_id=invoice.id) }}" class="btn btn-primary btn-sm">Download PDF</a>
+    <button onclick="window.print()" class="btn btn-secondary btn-sm">Print</button>
+    <a href="{{ url_for('accounting_routes.invoice_list') }}" class="btn btn-outline-secondary btn-sm">Back</a>
+  </div>
+</div>
+{% endblock %}
