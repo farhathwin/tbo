@@ -157,6 +157,12 @@ def chart_of_accounts():
         flash("❌ Company profile not found. Please complete company setup first.", "danger")
         return redirect(url_for('register_routes.profile_settings'))
 
+    # Ensure a fiscal year is configured
+    active_fy = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=True).first()
+    if not active_fy:
+        flash("⚠️ Please configure a fiscal year before creating accounts.", "warning")
+        return redirect(url_for('accounting_routes.manage_fiscal_years'))
+
     # Seed account types if not initialized
     if not company.account_types_initialized:
         seed_default_account_types(tenant_session, company_id)

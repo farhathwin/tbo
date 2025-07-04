@@ -328,12 +328,23 @@ def dashboard():
         flash("Session expired. Please login again.", "danger")
         return redirect(url_for('register_routes.login'))
 
-    domain = session['domain']
-    from app.models.models import TenantUser
-    tenant_session = get_company_db_session(domain)
-    user = tenant_session.query(TenantUser).get(session['user_id'])
+    tenant_session = current_tenant_session()
+    from app.models.models import TenantUser, CompanyProfile, FiscalYear
 
-    return render_template("dashboard.html", user=user)
+    user = tenant_session.query(TenantUser).get(session['user_id'])
+    company_id = session['company_id']
+
+    company = tenant_session.query(CompanyProfile).filter_by(company_id=company_id).first()
+    if not company:
+        flash("Please complete company profile setup first.", "warning")
+        return redirect(url_for('register_routes.profile_settings'))
+
+    fiscal_year = tenant_session.query(FiscalYear).filter_by(company_id=company_id, is_closed=True).first()
+    if not fiscal_year:
+        flash("Please configure a fiscal year before proceeding.", "warning")
+        return redirect(url_for('accounting_routes.manage_fiscal_years'))
+
+    return render_template("dashboard.html", user=user, role=session.get('role'))
 
 
 
