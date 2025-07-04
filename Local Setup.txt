@@ -1,0 +1,31 @@
+Local Setup 
+
+$env:SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:%40T%40_%24Ciy2kTSg_t@127.0.0.1:3306/testdb3'
+$env:SQLALCHEMY_ADMIN_URI = 'mysql+pymysql://root:%40T%40_%24Ciy2kTSg_t@127.0.0.1:3306/testdb3'
+
+
+
+
+
+
+Server Setup
+
+git clone https://github.com/farhathwin/tbo.git
+
+cd dbo
+
+python3.10 -m venv venv
+
+source venv/bin/activate
+
+pip install -r requirements.txt  (This need to run out of the vnv environment too) 
+
+pip install pymysql
+
+export SQLALCHEMY_DATABASE_URI='mysql+pymysql://mleasd:%40T%40_%24Ciy2kTSg_t@mleasd.mysql.pythonanywhere-services.com/mleasd$tbo'
+
+export SQLALCHEMY_ADMIN_URI='mysql+pymysql://mleasd:%40T%40_%24Ciy2kTSg_t@mleasd.mysql.pythonanywhere-services.com/mleasd$tbo'
+
+FLASK_APP=main.py flask db upgrade (This need to run out of the vnv environment too) 
+
+python main.py
