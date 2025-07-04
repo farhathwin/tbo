@@ -250,6 +250,9 @@
   <form method="POST" action="{{ url_for('accounting_routes.reverse_invoice', invoice_id=invoice.id) }}" class="d-inline-block me-2">
     <button type="submit" class="btn btn-warning" {{ 'disabled' if not locked else '' }}>↩ Invoice Reversal</button>
   </form>
+  {% if invoice.lines %}
+  <a href="{{ url_for('accounting_routes.view_invoice', invoice_id=invoice.id) }}" class="btn btn-outline-secondary me-2">🖨️ Print/PDF</a>
+  {% endif %}
 </div>
 <div class="mb-3">
   <a href="{{ url_for('accounting_routes.invoice_list') }}" class="btn btn-secondary">⬅ Back to Invoice List</a>
