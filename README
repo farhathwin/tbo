@@ -132,6 +132,21 @@ the core tables:
 FLASK_APP=main.py flask db upgrade
 ```
 
+## Running with Gunicorn
+
+For production deployments you can serve the application using
+`gunicorn`. Bind the server to `0.0.0.0` so it accepts external
+connections and choose port `80` if you want the domain to work without
+a port suffix:
+
+```bash
+gunicorn --bind 0.0.0.0:80 main:app
+```
+
+Ports below ``1024`` require elevated privileges, so you may need to run
+the command with ``sudo`` or adjust your firewall rules if using a
+different port.
+
 ## Purchase numbers for invoice lines
 
 Invoice line items automatically receive a unique purchase number once
