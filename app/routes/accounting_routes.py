@@ -1975,6 +1975,7 @@ def parse_airfile_metadata(path: str):
     return {"pnr": pnr, "date": dt}
 
 
+
 def _parse_filename(name: str):
     """Return basic info from the AIR filename."""
     info = {"agent_code": None, "pnr": None, "date": None, "filename": name}
@@ -1991,6 +1992,13 @@ def _parse_filename(name: str):
                 continue
     return info
 
+def list_airfiles(agent_code: str | None = None):
+    folder = os.path.join(current_app.root_path, "..", "airfiles")
+    files = []
+    if os.path.isdir(folder):
+        for name in os.listdir(folder):
+            if not name.lower().endswith(".air"):
+                continue
 
 def list_airfiles(agent_code: str | None = None):
     folder = os.path.join(current_app.root_path, "..", "airfiles")

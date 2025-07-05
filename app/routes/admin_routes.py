@@ -82,6 +82,7 @@ def _parse_airfile_metadata(path: str):
     return {"pnr": pnr, "date": dt}
 
 
+
 def _parse_filename(name: str):
     info = {"agent_code": None, "pnr": None, "date": None, "filename": name}
     m = re.match(r"([^\-]+)-([A-Z0-9]+)-(\d{6})-(.+)", name)
@@ -97,7 +98,6 @@ def _parse_filename(name: str):
                 continue
     return info
 
-
 def _load_airfiles(agent_code: str | None = None):
     folder = os.path.join(current_app.root_path, "..", "airfiles")
     files = []
@@ -105,6 +105,7 @@ def _load_airfiles(agent_code: str | None = None):
         for name in os.listdir(folder):
             if not name.lower().endswith(".air"):
                 continue
+
             info = _parse_filename(name)
             if agent_code and info["agent_code"] and info["agent_code"] != str(agent_code):
                 continue
