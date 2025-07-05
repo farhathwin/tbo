@@ -3,8 +3,7 @@
 
 {% block content %}
 <h3>Profile Settings</h3>
-<p class="text-muted">Company ID: {{ company.company_id if company else session.get('company_id') }}</p>
-
+<p class="text-muted">Company Code: {{ company_code }}</p>
 {% set show_company = role in ['SuperXuser', 'Admin'] %}
 
 <ul class="nav nav-tabs" id="profileTab" role="tablist">
