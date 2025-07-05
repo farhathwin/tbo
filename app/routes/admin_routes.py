@@ -1,5 +1,7 @@
+
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, current_app
 from werkzeug.security import check_password_hash
+
 
 from app import db, bcrypt
 from app.models.models import Admin, MasterCompany
@@ -10,6 +12,7 @@ admin_routes = Blueprint('admin_routes', __name__)
 # Helper to ensure admin account exists with predefined credentials
 DEFAULT_ADMIN_EMAIL = 'farhathwin@gmail.com'
 DEFAULT_ADMIN_PASSWORD = 'admin123'
+
 
 @admin_routes.before_app_request
 def ensure_admin_exists():
