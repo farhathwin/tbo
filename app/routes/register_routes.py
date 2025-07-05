@@ -185,6 +185,8 @@ def login():
             return redirect(url_for('register_routes.login'))
 
         matching_domains = []
+        user_role = user.role
+        role_set = False
         companies = MasterCompany.query.all()
         for company in companies:
             try:
@@ -194,6 +196,9 @@ def login():
                     tenant_user.last_login = datetime.utcnow()
                     tenant_session.commit()
                     matching_domains.append(company.domain)
+                    if not role_set:
+                        user_role = tenant_user.role
+                        role_set = True
             except Exception:
                 continue
 
@@ -207,7 +212,7 @@ def login():
         session['email'] = email
         session['user_id'] = user.id
         session['available_domains'] = matching_domains
-        session['role'] = tenant_user.role
+        session['role'] = user_role
 
 
         if len(matching_domains) == 1:
