@@ -663,6 +663,9 @@ def profile_settings():
     user_id = session['user_id']
     user_role = session.get('role')
 
+    core_company = Company.query.get(company_id)
+    company_code = core_company.code if core_company else None
+
     company = tenant_session.query(CompanyProfile).filter_by(company_id=company_id).first()
     user = tenant_session.query(UserProfile).filter_by(user_id=user_id).first()
 
@@ -729,6 +732,7 @@ def profile_settings():
         company=company,
         user=user,
         role=user_role,
+        company_code=company_code,
         countries=countries,
         currencies=currencies
     )
