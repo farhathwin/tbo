@@ -21,6 +21,7 @@ from app.models.models import (
     Expense,
     SupplierPayment,
     BankTransfer,
+    Company,
 )
 from app.routes.register_routes import current_tenant_session
 from sqlalchemy import or_, and_, func
@@ -40,6 +41,8 @@ import uuid
 
 from app.utils.email_utils import send_email
 from app import mail
+import os
+import re
 
 
 
@@ -1947,6 +1950,66 @@ def generate_purchase_number(invoice_id: int, line_id: int) -> str:
     return f"P{invoice_id:04}{line_id:02}"
 
 
+def parse_airfile_metadata(path: str):
+    """Extract PNR and date from an AIR file."""
+    pnr = None
+    dt = None
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if not pnr and line.startswith("MUC1A"):
+                    m = re.search(r"MUC1A\s+([A-Z0-9]{6})", line)
+                    if m:
+                        pnr = m.group(1)
+                if not dt and line.startswith("D-"):
+                    m = re.search(r"D-(\d{6})", line)
+                    if m:
+                        try:
+                            dt = datetime.strptime(m.group(1), "%y%m%d").date()
+                        except ValueError:
+                            dt = None
+                if pnr and dt:
+                    break
+    except OSError:
+        pass
+    return {"pnr": pnr, "date": dt}
+
+
+def _parse_filename(name: str):
+    """Return basic info from the AIR filename."""
+    info = {"agent_code": None, "pnr": None, "date": None, "filename": name}
+    m = re.match(r"([^\-]+)-([A-Z0-9]+)-(\d{6})-(.+)", name)
+    if m:
+        info["agent_code"] = m.group(1)
+        info["pnr"] = m.group(2)
+        date_part = m.group(3)
+        for fmt in ("%d%m%y", "%y%m%d"):
+            try:
+                info["date"] = datetime.strptime(date_part, fmt).date()
+                break
+            except ValueError:
+                continue
+    return info
+
+
+def list_airfiles(agent_code: str | None = None):
+    folder = os.path.join(current_app.root_path, "..", "airfiles")
+    files = []
+    if os.path.isdir(folder):
+        for name in os.listdir(folder):
+            if not name.lower().endswith(".air"):
+                continue
+            info = _parse_filename(name)
+            if agent_code and info["agent_code"] and info["agent_code"] != str(agent_code):
+                continue
+            if not info["pnr"] or not info["date"]:
+                meta = parse_airfile_metadata(os.path.join(folder, name))
+                info["pnr"] = info["pnr"] or meta.get("pnr")
+                info["date"] = info["date"] or meta.get("date")
+            files.append(info)
+    return files
+
+
 def get_supplier_balance(session, company_id, supplier):
     """Return payable balance for a supplier."""
     credit_total = session.query(func.coalesce(func.sum(JournalLine.credit), 0)).join(JournalEntry).filter(
@@ -2213,13 +2276,32 @@ def edit_invoice(invoice_id):
     ).all()
     staff_json = [{"email": s.email} for s in staff_list]
 
+    # Load GDS files for this company's code
+    company_core = Company.query.get(invoice.company_id)
+    agent_code = company_core.code if company_core else None
+    gds_files = list_airfiles(agent_code)
+
     return render_template(
         'accounting/invoice_edit.html',
         invoice=invoice,
         suppliers=suppliers,
         customers_json=customers_json,
         staff_json=staff_json,
+        gds_files=gds_files,
     )
+
+
+@accounting_routes.route('/invoices/<int:invoice_id>/create-from-airfiles', methods=['POST'])
+def create_invoice_from_airfiles(invoice_id):
+    if 'domain' not in session:
+        return redirect(url_for('register_routes.login'))
+
+    selected = request.form.getlist('airfiles')
+    if not selected:
+        flash('No files selected.', 'warning')
+    else:
+        flash('Selected files: ' + ', '.join(selected), 'info')
+    return redirect(url_for('accounting_routes.edit_invoice', invoice_id=invoice_id))
 
 
 
