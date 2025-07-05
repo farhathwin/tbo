@@ -26,6 +26,19 @@ export SQLALCHEMY_DATABASE_URI='mysql+pymysql://mleasd:%40T%40_%24Ciy2kTSg_t@mle
 
 export SQLALCHEMY_ADMIN_URI='mysql+pymysql://mleasd:%40T%40_%24Ciy2kTSg_t@mleasd.mysql.pythonanywhere-services.com/mleasd$tbo'
 
-FLASK_APP=main.py flask db upgrade (This need to run out of the vnv environment too) 
+flask db upgrade (This need to run out of the vnv environment too) 
 
 python main.py
+
+
+$env:SQLALCHEMY_DATABASE_URI='mysql+pymysql://dbmasteruser:)q(=KRREoC)cW5o5YaDgw$g6%(u6`9{b@ls-c3344a1f3adca7ec35d9dee2e41c66d2f186212e.cttieryudfui.us-east-1.rds.amazonaws.com/tbo'
+
+$env:SQLALCHEMY_ADMIN_URI='mysql+pymysql://dbmasteruser:)q(=KRREoC)cW5o5YaDgw$g6%(u6`9{b@ls-c3344a1f3adca7ec35d9dee2e41c66d2f186212e.cttieryudfui.us-east-1.rds.amazonaws.com/tbo'
+
+
+ubuntu@44.215.22.82
+
+sudo systemctl daemon-reload
+sudo systemctl restart tbo
+sudo systemctl status tbo
+
