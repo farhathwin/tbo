@@ -3,6 +3,7 @@
 
 {% block content %}
 <h3>Profile Settings</h3>
+<p class="text-muted">Company ID: {{ company.company_id if company else session.get('company_id') }}</p>
 
 {% set show_company = role in ['SuperXuser', 'Admin'] %}
 
