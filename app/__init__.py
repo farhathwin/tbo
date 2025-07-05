@@ -72,6 +72,9 @@ def create_app(db_uri_override=None):
     from app.routes.account_type_routes import account_type_routes
     app.register_blueprint(account_type_routes)
 
+    from app.routes.admin_routes import admin_routes
+    app.register_blueprint(admin_routes)
+
     # Shell context
     @app.shell_context_processor
     def make_shell_context():
