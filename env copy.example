@@ -2,6 +2,6 @@
 SECRET_KEY=your-secret-key
 MAIL_USERNAME=your-email@example.com
 MAIL_PASSWORD=your-email-password
-SQLALCHEMY_DATABASE_URI=sqlite:///instance/app.db
+SQLALCHEMY_DATABASE_URI=mysql+pymysql://<user>:<password>@<host>/<db>
 SQLALCHEMY_ADMIN_URI=mysql+pymysql://<admin>:<password>@<host>/<db>
 DB_PASSWORD=your-database-password

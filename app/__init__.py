@@ -8,12 +8,9 @@ import os
 from dotenv import load_dotenv
 
 
-# Absolute path to the repository root. This ensures that the default
-# SQLite database path is resolved correctly regardless of the current
-# working directory.
+# Absolute path to the repository root.  Used to locate the migrations
+# directory and the optional ``.env`` file.
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
-os.makedirs(INSTANCE_DIR, exist_ok=True)
 
 # Load environment variables from ".env".  Some older setups used a file
 # named just "env" so fall back to that if the new file does not exist.
@@ -35,14 +32,10 @@ def create_app(db_uri_override=None):
     app = Flask(__name__)
 
     # Main database config
-    # Default to the central database stored under ``instance/app.db`` unless
-    # overridden by an explicit URI or the ``SQLALCHEMY_DATABASE_URI``
-    # environment variable.
-    default_db_path = os.path.join(INSTANCE_DIR, 'app.db')
-    default_db = f"sqlite:///{default_db_path}"
-
     env_db = os.environ.get("SQLALCHEMY_DATABASE_URI")
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri_override or env_db or default_db
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri_override or env_db
+    if not app.config['SQLALCHEMY_DATABASE_URI']:
+        raise RuntimeError('SQLALCHEMY_DATABASE_URI must be configured')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_secret_key_here')
     app.config['SESSION_TYPE'] = 'filesystem'

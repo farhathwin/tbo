@@ -9,7 +9,7 @@ from sqlalchemy import text
 from flask import current_app
 
 # Step 1: Connect to central database (holding tenants list)
-CENTRAL_DB_URI = "sqlite:///instance/app.db"  # Replace with your actual main DB
+CENTRAL_DB_URI = "mysql+pymysql://<user>:<password>@<host>/<db>"
 
 def get_all_tenants():
     """Fetch tenants and their DB URIs from central tenant table"""
@@ -37,8 +37,7 @@ if __name__ == '__main__':
 ## Migrating to a tenant database
 
 1. Add each tenant domain to the `master_company` table. The migration
-   script uses the domain name to build the path of the SQLite database
-   under `tenant_dbs/`.
+   script uses the domain name to build the database name for each tenant.
 2. Run the migration script to apply Alembic upgrades for every tenant:
 
    ```bash
@@ -49,7 +48,7 @@ if __name__ == '__main__':
    to the latest revision before running the script:
 
    ```bash
-   FLASK_APP=main.py SQLALCHEMY_DATABASE_URI=sqlite:///tenant_dbs/<tenant>.db \
+   FLASK_APP=main.py SQLALCHEMY_DATABASE_URI=mysql+pymysql://<user>:<password>@<host>/<tenant_db> \
        flask db stamp head
    ```
 
@@ -104,8 +103,7 @@ database.
 
 
 
-When this variable is unset the application falls back to the local
-``instance/app.db`` SQLite file for development.
+
 
 When running on MySQL the helper that creates tenant databases looks for a
 ``SQLALCHEMY_ADMIN_URI`` environment variable.  If set, this URI is used for

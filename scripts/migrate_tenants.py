@@ -6,7 +6,7 @@ from flask_migrate import Migrate, upgrade, stamp
 # Add parent directory to path so imports work
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from app import create_app, db  # ✅ FIXED
-from app.utils.database_utils import get_tenant_db_path, create_company_schema
+from app.utils.database_utils import get_tenant_db_uri, create_company_schema
 
 
 app = create_app()
@@ -18,9 +18,8 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 # an Alembic version, we stamp it with this revision before upgrading.
 BASE_REVISION = "df0745a851cf"
 
-# Point to the central database that stores tenant domains. The file
-# lives under the application's ``instance`` folder.
-CENTRAL_DB_URI = f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'app.db')}"
+# Central database URI comes from the environment
+CENTRAL_DB_URI = os.environ.get("SQLALCHEMY_DATABASE_URI")
 
 
 def get_all_tenants():
@@ -31,12 +30,8 @@ def get_all_tenants():
 
 
 def migrate_tenant(domain):
-    db_path = get_tenant_db_path(domain)
-    if not os.path.exists(db_path):
-        # Ensure the tenant database exists before attempting migrations
-        create_company_schema(domain)
-
-    db_uri = f"sqlite:///{db_path}"
+    db_uri = get_tenant_db_uri(domain)
+    create_company_schema(domain)
     print(f"🔁 Migrating tenant: {domain}")
     app = create_app(db_uri_override=db_uri)
     migrations_dir = os.path.join(BASE_DIR, "migrations")
