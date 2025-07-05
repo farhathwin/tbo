@@ -3,6 +3,36 @@
 {% set locked = invoice.status == 'Finalised' %}
 {% block content %}
 <h3>Edit Invoice #{{ invoice.invoice_number }}</h3>
+{% if gds_files %}
+<div class="mb-3">
+  <h5>GDS Tray</h5>
+  <form method="POST" action="{{ url_for('accounting_routes.create_invoice_from_airfiles', invoice_id=invoice.id) }}">
+    <table class="table table-sm table-bordered">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Agent Code</th>
+          <th>PNR</th>
+          <th>Date</th>
+          <th>File</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in gds_files %}
+        <tr>
+          <td><input type="checkbox" name="airfiles" value="{{ f.filename }}"></td>
+          <td>{{ f.agent_code }}</td>
+          <td>{{ f.pnr or '-' }}</td>
+          <td>{{ f.date.strftime('%Y-%m-%d') if f.date else '-' }}</td>
+          <td>{{ f.filename }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit" class="btn btn-sm btn-primary">Create Invoice</button>
+  </form>
+</div>
+{% endif %}
 <form method="POST" class="mb-3">
   <div class="row g-2">
     <div class="col-md-3 position-relative">

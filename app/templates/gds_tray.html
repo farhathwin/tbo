@@ -1,0 +1,25 @@
+{% extends 'baseadmin.html' %}
+{% block title %}GDS Tray{% endblock %}
+{% block content %}
+<h3>GDS Tray</h3>
+<table class="table table-bordered table-striped">
+  <thead>
+    <tr>
+      <th>Agent Code</th>
+      <th>PNR</th>
+      <th>Date</th>
+      <th>File Name</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for f in files %}
+    <tr>
+      <td>{{ f.agent_code }}</td>
+      <td>{{ f.pnr or '-' }}</td>
+      <td>{{ f.date.strftime('%Y-%m-%d') if f.date else '-' }}</td>
+      <td>{{ f.filename }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

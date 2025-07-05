@@ -1,5 +1,8 @@
 
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, current_app
+import os
+import re
+from datetime import datetime
 from app import db, bcrypt
 from app.models.models import Admin, MasterCompany
 
@@ -52,3 +55,57 @@ def admin_dashboard():
 
     companies = MasterCompany.query.order_by(MasterCompany.created_at.desc()).all()
     return render_template('admin_dashboard.html', companies=companies)
+
+
+def _parse_airfile_metadata(path: str):
+    """Return dict with PNR and date from an AIR file."""
+    pnr = None
+    dt = None
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if not pnr and line.startswith("MUC1A"):
+                    m = re.search(r"MUC1A\s+([A-Z0-9]{6})", line)
+                    if m:
+                        pnr = m.group(1)
+                if not dt and line.startswith("D-"):
+                    m = re.search(r"D-(\d{6})", line)
+                    if m:
+                        try:
+                            dt = datetime.strptime(m.group(1), "%y%m%d").date()
+                        except ValueError:
+                            dt = None
+                if pnr and dt:
+                    break
+    except OSError:
+        pass
+    return {"pnr": pnr, "date": dt}
+
+
+def _load_airfiles(agent_code: str | None = None):
+    folder = os.path.join(current_app.root_path, "..", "airfiles")
+    files = []
+    if os.path.isdir(folder):
+        for name in os.listdir(folder):
+            if not name.lower().endswith(".air"):
+                continue
+            code = name.split("_")[0]
+            if agent_code and code != str(agent_code):
+                continue
+            meta = _parse_airfile_metadata(os.path.join(folder, name))
+            files.append({
+                "agent_code": code,
+                "pnr": meta.get("pnr"),
+                "date": meta.get("date"),
+                "filename": name,
+            })
+    return files
+
+
+@admin_routes.route("/admin/gds-tray")
+def gds_tray():
+    if not session.get("admin_id"):
+        return redirect(url_for("admin_routes.admin_login"))
+    files = _load_airfiles()
+    files.sort(key=lambda x: (x["agent_code"], x["filename"]))
+    return render_template("gds_tray.html", files=files)
