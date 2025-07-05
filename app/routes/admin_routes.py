@@ -1,5 +1,7 @@
-from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-from werkzeug.security import generate_password_hash, check_password_hash
+
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, current_app
+from werkzeug.security import check_password_hash
+
 
 from app import db, bcrypt
 from app.models.models import Admin, MasterCompany
@@ -11,14 +13,20 @@ admin_routes = Blueprint('admin_routes', __name__)
 DEFAULT_ADMIN_EMAIL = 'farhathwin@gmail.com'
 DEFAULT_ADMIN_PASSWORD = 'admin123'
 
-@admin_routes.before_app_first_request
+
+@admin_routes.before_app_request
 def ensure_admin_exists():
-    admin = Admin.query.filter_by(email=DEFAULT_ADMIN_EMAIL).first()
-    if not admin:
-        hashed = bcrypt.generate_password_hash(DEFAULT_ADMIN_PASSWORD).decode('utf-8')
-        admin = Admin(email=DEFAULT_ADMIN_EMAIL, password=hashed)
-        db.session.add(admin)
-        db.session.commit()
+    """Ensure a default admin account exists once per app lifecycle."""
+    if not current_app.config.get("_admin_initialized"):
+        admin = Admin.query.filter_by(email=DEFAULT_ADMIN_EMAIL).first()
+        if not admin:
+            hashed = bcrypt.generate_password_hash(
+                DEFAULT_ADMIN_PASSWORD
+            ).decode("utf-8")
+            admin = Admin(email=DEFAULT_ADMIN_EMAIL, password=hashed)
+            db.session.add(admin)
+            db.session.commit()
+        current_app.config["_admin_initialized"] = True
 
 
 @admin_routes.route('/admin/login', methods=['GET', 'POST'])
