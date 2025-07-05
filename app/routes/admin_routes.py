@@ -1,8 +1,5 @@
 
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, current_app
-from werkzeug.security import check_password_hash
-
-
 from app import db, bcrypt
 from app.models.models import Admin, MasterCompany
 
@@ -35,7 +32,7 @@ def admin_login():
         email = request.form['email']
         password = request.form['password']
         admin = Admin.query.filter_by(email=email).first()
-        if admin and check_password_hash(admin.password, password):
+        if admin and bcrypt.check_password_hash(admin.password, password):
             session['admin_id'] = admin.id
             return redirect(url_for('admin_routes.admin_dashboard'))
         flash('Invalid credentials', 'danger')
