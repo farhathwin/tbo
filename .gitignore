@@ -7,4 +7,4 @@ venv/
 instance/*.db
 tenant_dbs/*.db
 
-
+.env
