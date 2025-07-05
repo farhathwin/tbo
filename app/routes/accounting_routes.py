@@ -1975,6 +1975,23 @@ def parse_airfile_metadata(path: str):
     return {"pnr": pnr, "date": dt}
 
 
+
+def _parse_filename(name: str):
+    """Return basic info from the AIR filename."""
+    info = {"agent_code": None, "pnr": None, "date": None, "filename": name}
+    m = re.match(r"([^\-]+)-([A-Z0-9]+)-(\d{6})-(.+)", name)
+    if m:
+        info["agent_code"] = m.group(1)
+        info["pnr"] = m.group(2)
+        date_part = m.group(3)
+        for fmt in ("%d%m%y", "%y%m%d"):
+            try:
+                info["date"] = datetime.strptime(date_part, fmt).date()
+                break
+            except ValueError:
+                continue
+    return info
+
 def list_airfiles(agent_code: str | None = None):
     folder = os.path.join(current_app.root_path, "..", "airfiles")
     files = []
@@ -1982,16 +1999,22 @@ def list_airfiles(agent_code: str | None = None):
         for name in os.listdir(folder):
             if not name.lower().endswith(".air"):
                 continue
-            code = name.split("_")[0]
-            if agent_code and code != str(agent_code):
+
+def list_airfiles(agent_code: str | None = None):
+    folder = os.path.join(current_app.root_path, "..", "airfiles")
+    files = []
+    if os.path.isdir(folder):
+        for name in os.listdir(folder):
+            if not name.lower().endswith(".air"):
                 continue
-            meta = parse_airfile_metadata(os.path.join(folder, name))
-            files.append({
-                "agent_code": code,
-                "pnr": meta.get("pnr"),
-                "date": meta.get("date"),
-                "filename": name,
-            })
+            info = _parse_filename(name)
+            if agent_code and info["agent_code"] and info["agent_code"] != str(agent_code):
+                continue
+            if not info["pnr"] or not info["date"]:
+                meta = parse_airfile_metadata(os.path.join(folder, name))
+                info["pnr"] = info["pnr"] or meta.get("pnr")
+                info["date"] = info["date"] or meta.get("date")
+            files.append(info)
     return files
 
 
