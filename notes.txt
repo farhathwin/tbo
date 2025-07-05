@@ -13,7 +13,7 @@ If migrations are re-initialized (e.g., you recreated the migrations
 folder), stamp each tenant database to the current revision before
 running the migration script:
 
-   FLASK_APP=main.py SQLALCHEMY_DATABASE_URI=sqlite:///tenant_dbs/<tenant>.db \
+   FLASK_APP=main.py SQLALCHEMY_DATABASE_URI=mysql+pymysql://<user>:<password>@<host>/<tenant_db> \
        flask db stamp head
 
 
@@ -22,9 +22,8 @@ Set the ``SQLALCHEMY_DATABASE_URI`` environment variable on the server to use
 your MySQL instance. For the provided credentials the value would be::
 
     mysql+pymysql://<user>:<password>@<host>/<db>
-If this variable is not set the application falls back to the default SQLite
-database for local testing.  ``notes.txt`` is only for developer reference and
-does not need to be deployed to production.
+``notes.txt`` is only for developer reference and does not need to be deployed
+to production.
 
 
 ## Resolving "no such column" errors
